@@ -1,6 +1,7 @@
 package com.korofin.backend.dto.ai;
 
 import com.korofin.backend.entity.expense.CategoryType;
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.Size;
@@ -23,6 +24,7 @@ public record CategorizeRequest(
         @Size(max = 255, message = "La descripción no puede superar 255 caracteres")
         String description,
         @Positive(message = "El monto debe ser mayor a cero")
+        @Digits(integer = 15, fraction = 2, message = "El monto no puede tener más de 2 decimales")
         BigDecimal amount,
         CategoryType type
 ) {

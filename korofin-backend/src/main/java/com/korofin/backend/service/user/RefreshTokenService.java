@@ -117,7 +117,19 @@ public class RefreshTokenService {
         }
 
         String hashedRawToken = hashToken(rawToken);
-        if (!hashedRawToken.equals(refreshToken.getTokenHash())) {
+        // MessageDigest.isEqual (no String.equals) para que la comparación sea constante en tiempo,
+        // igual que en TelegramWebhookFilter - String.equals corta en el primer byte distinto.
+        if (!MessageDigest.isEqual(
+                hashedRawToken.getBytes(StandardCharsets.UTF_8),
+                refreshToken.getTokenHash().getBytes(StandardCharsets.UTF_8))) {
+            throw new InvalidRefreshTokenException("Refresh token inválido");
+        }
+
+        // Defensa en profundidad: el JWT no puede forjarse sin la clave de firma, pero comparar
+        // explícitamente el subject contra el dueño de la fila evita depender únicamente de eso -
+        // por ejemplo si en el futuro se relajara la validación de firma o quedara una fila huérfana.
+        String subject = claims.getSubject();
+        if (subject == null || !subject.equals(String.valueOf(refreshToken.getUser().getId()))) {
             throw new InvalidRefreshTokenException("Refresh token inválido");
         }
 

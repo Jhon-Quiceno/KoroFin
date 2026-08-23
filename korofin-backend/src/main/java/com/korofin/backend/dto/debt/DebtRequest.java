@@ -1,6 +1,7 @@
 package com.korofin.backend.dto.debt;
 
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -24,6 +25,7 @@ public record DebtRequest(
         String name,
         @NotNull(message = "El monto total es obligatorio")
         @Positive(message = "El monto total debe ser mayor a cero")
+        @Digits(integer = 15, fraction = 2, message = "El monto total no puede tener más de 2 decimales")
         BigDecimal totalAmount,
         @DecimalMin(value = "0.0", message = "La tasa de interés no puede ser negativa")
         BigDecimal interestRate,

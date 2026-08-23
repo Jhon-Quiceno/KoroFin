@@ -1,6 +1,7 @@
 package com.korofin.backend.dto.recurringpayment;
 
 import com.korofin.backend.entity.recurringpayment.RecurringFrequency;
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
@@ -27,6 +28,7 @@ public record RecurringPaymentUpdateRequest(
         String name,
         @NotNull(message = "El monto es obligatorio")
         @Positive(message = "El monto debe ser mayor a cero")
+        @Digits(integer = 15, fraction = 2, message = "El monto no puede tener más de 2 decimales")
         BigDecimal amount,
         @NotNull(message = "La frecuencia es obligatoria")
         RecurringFrequency frequency

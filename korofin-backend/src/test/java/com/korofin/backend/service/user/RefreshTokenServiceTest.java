@@ -166,6 +166,7 @@ class RefreshTokenServiceTest {
 
         Claims oldClaims = mock(Claims.class);
         when(oldClaims.getId()).thenReturn(tokenId.toString());
+        when(oldClaims.getSubject()).thenReturn(String.valueOf(user.getId()));
         when(jwtService.parseRefreshToken(oldRawToken)).thenReturn(oldClaims);
         when(refreshTokenRepository.findByTokenId(tokenId)).thenReturn(Optional.of(stored));
 

@@ -158,6 +158,17 @@ class CardMovementControllerTest {
     }
 
     @Test
+    void registerPurchaseReturns400WhenTheAmountHasMoreThanTwoDecimals() throws Exception {
+        CardPurchaseRequest request = new CardPurchaseRequest(new BigDecimal("10.999"), null, null, null);
+
+        mockMvc.perform(post("/api/cards/1/purchases")
+                        .header("Authorization", AUTH_HEADER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void registerPurchaseReturns404WhenCardBelongsToAnotherUser() throws Exception {
         CardPurchaseRequest request = new CardPurchaseRequest(new BigDecimal("1000"), null, null, null);
         when(cardMovementService.registerPurchase(eq(99L), any(CardPurchaseRequest.class)))
@@ -200,6 +211,17 @@ class CardMovementControllerTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("El pago no puede superar el saldo actual de la tarjeta"));
+    }
+
+    @Test
+    void registerPaymentReturns400WhenTheAmountHasMoreThanTwoDecimals() throws Exception {
+        CardPaymentRequest request = new CardPaymentRequest(new BigDecimal("10.999"), null, null);
+
+        mockMvc.perform(post("/api/cards/1/payments")
+                        .header("Authorization", AUTH_HEADER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

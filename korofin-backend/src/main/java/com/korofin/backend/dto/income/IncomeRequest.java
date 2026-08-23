@@ -1,5 +1,6 @@
 package com.korofin.backend.dto.income;
 
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PastOrPresent;
 import jakarta.validation.constraints.Positive;
@@ -24,6 +25,7 @@ import java.time.LocalDate;
 public record IncomeRequest(
         @NotNull(message = "El monto es obligatorio")
         @Positive(message = "El monto debe ser mayor a cero")
+        @Digits(integer = 15, fraction = 2, message = "El monto no puede tener más de 2 decimales")
         BigDecimal amount,
         @Size(max = 255, message = "La descripción no puede superar 255 caracteres")
         String description,

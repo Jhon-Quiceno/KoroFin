@@ -2,6 +2,7 @@ package com.korofin.backend.dto.card;
 
 import com.korofin.backend.entity.card.CardFranchise;
 import jakarta.validation.constraints.DecimalMin;
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -32,6 +33,7 @@ public record CreditCardRequest(
         CardFranchise franchise,
         @NotNull(message = "El cupo es obligatorio")
         @Positive(message = "El cupo debe ser mayor a cero")
+        @Digits(integer = 15, fraction = 2, message = "El cupo no puede tener más de 2 decimales")
         BigDecimal creditLimit,
         @NotNull(message = "La tasa mensual es obligatoria")
         @DecimalMin(value = "0.0", message = "La tasa mensual no puede ser negativa")

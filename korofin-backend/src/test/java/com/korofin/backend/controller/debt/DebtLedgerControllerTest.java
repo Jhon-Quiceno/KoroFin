@@ -128,6 +128,17 @@ class DebtLedgerControllerTest {
     }
 
     @Test
+    void createPaymentReturns400WhenTheAmountHasMoreThanTwoDecimals() throws Exception {
+        DebtPaymentRequest request = new DebtPaymentRequest(new BigDecimal("10.999"), null, null);
+
+        mockMvc.perform(post("/api/debts/1/payments")
+                        .header("Authorization", AUTH_HEADER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void createPaymentReturns404WhenDebtBelongsToAnotherUser() throws Exception {
         DebtPaymentRequest request = new DebtPaymentRequest(new BigDecimal("1000"), null, null);
         when(debtPaymentService.createPayment(eq(99L), any(DebtPaymentRequest.class)))
@@ -181,6 +192,17 @@ class DebtLedgerControllerTest {
                         .header("Authorization", AUTH_HEADER)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(futureBody))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void createChargeReturns400WhenTheAmountHasMoreThanTwoDecimals() throws Exception {
+        DebtChargeRequest request = new DebtChargeRequest(new BigDecimal("10.999"), null, null);
+
+        mockMvc.perform(post("/api/debts/1/charges")
+                        .header("Authorization", AUTH_HEADER)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isBadRequest());
     }
 

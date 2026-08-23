@@ -1,6 +1,7 @@
 package com.korofin.backend.dto.statement;
 
 import com.korofin.backend.entity.expense.PaymentMethodType;
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PastOrPresent;
 import jakarta.validation.constraints.Positive;
@@ -31,6 +32,7 @@ public record ImportConfirmRow(
         MovementType movementType,
         @NotNull(message = "El monto es obligatorio")
         @Positive(message = "El monto debe ser mayor a cero")
+        @Digits(integer = 15, fraction = 2, message = "El monto no puede tener más de 2 decimales")
         BigDecimal amount,
         @NotNull(message = "La fecha es obligatoria")
         @PastOrPresent(message = "La fecha no puede ser futura")

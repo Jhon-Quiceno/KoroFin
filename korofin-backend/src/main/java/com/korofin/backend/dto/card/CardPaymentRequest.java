@@ -1,5 +1,6 @@
 package com.korofin.backend.dto.card;
 
+import jakarta.validation.constraints.Digits;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PastOrPresent;
 import jakarta.validation.constraints.Positive;
@@ -20,6 +21,7 @@ import java.time.LocalDate;
 public record CardPaymentRequest(
         @NotNull(message = "El monto del pago es obligatorio")
         @Positive(message = "El monto del pago debe ser mayor a cero")
+        @Digits(integer = 15, fraction = 2, message = "El monto no puede tener más de 2 decimales")
         BigDecimal amount,
         @PastOrPresent(message = "La fecha no puede ser futura")
         LocalDate date,
