@@ -3,7 +3,7 @@
 Aplicación de finanzas personales, **solo móvil** (sin frontend web). Monorepo con dos proyectos:
 
 - `korofin_mobile/` — App Flutter (Dart), organizada por tipo + feature: `lib/screens/<feature>/`, `lib/widgets/<tipo>/`, `lib/theme/`, `lib/models/`, `lib/routes/`, `lib/data/`.
-- `korofin-backend/` — API REST en Java 21 + Spring Boot 4 (Maven). Paquete base: `com.korofin.backend`, organizado **por capa técnica primero** (`controller/`, `service/`, `repository/`, `dto/`, `entity/`, `mapper/`), con el dominio de negocio anidado adentro de cada capa (`controller/user/`, `service/expense/`, etc. — ver `docs/backend-plan.md` para el detalle completo y el porqué de esta decisión).
+- `korofin-backend/` — API REST en Java 21 + Spring Boot 4 (Maven). Paquete base: `com.korofin.backend`, organizado **por dominio de negocio primero** (`user/`, `expense/`, `debt/`, `card/`, `income/`, `statement/`, `ai/`, `report/`, `notification/`, `recurringpayment/`, `integration/`, `analysis/`), con la capa técnica anidada adentro de cada dominio (`user/controller/`, `expense/service/`, etc. — ver `docs/backend-plan.md` sección 12 para el detalle completo y el porqué de esta decisión).
 
 Reemplaza al proyecto anterior `FinSmart` (que sí tenía frontend web en Next.js). Ver `docs/backend-plan.md` para el mapeo completo de decisiones de arquitectura del backend.
 

@@ -1,0 +1,16 @@
+package com.korofin.backend.common.exception;
+
+import java.time.Instant;
+
+/**
+ * Cuerpo estándar de respuesta de error para todas las excepciones mapeadas por
+ * {@link GlobalExceptionHandler}.
+ */
+public record ErrorResponse(
+        Instant timestamp,
+        int status,
+        String error,
+        String message,
+        String path
+) {
+}

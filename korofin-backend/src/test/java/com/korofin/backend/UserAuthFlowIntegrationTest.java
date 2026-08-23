@@ -2,9 +2,9 @@ package com.korofin.backend;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.korofin.backend.dto.user.LoginRequest;
-import com.korofin.backend.dto.user.RefreshRequest;
-import com.korofin.backend.dto.user.RegisterRequest;
+import com.korofin.backend.user.dto.LoginRequest;
+import com.korofin.backend.user.dto.RefreshRequest;
+import com.korofin.backend.user.dto.RegisterRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;

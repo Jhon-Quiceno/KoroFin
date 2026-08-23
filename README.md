@@ -69,7 +69,7 @@ Este proyecto reemplaza a `FinSmart`, su predecesor (que incluía un frontend we
                          │  HTTP REST (Bearer JWT, sin cookies)
 ┌────────────────────────▼─────────────────────────────────┐
 │              BACKEND (Spring Boot 4, Java 21)              │
-│   Paquetes por capa técnica, dominio anidado adentro        │
+│   Paquetes por dominio de negocio, capa técnica adentro     │
 │    ┌──────────┐  ┌──────────┐  ┌──────────┐              │
 │    │Controller│→ │ Service  │→ │Repository│  + Mappers    │
 │    └──────────┘  └──────────┘  └──────────┘              │
@@ -221,15 +221,20 @@ KoroFin/
 │
 ├── korofin-backend/              ← Spring Boot 4 + Java 21
 │   ├── src/main/java/com/korofin/backend/
-│   │   ├── controller/            ← Por capa técnica, dominio anidado adentro
-│   │   ├── service/
-│   │   ├── repository/
-│   │   ├── dto/
-│   │   ├── entity/
-│   │   ├── mapper/
-│   │   ├── security/              ← JWT, rate limiting, filtro de Telegram
-│   │   ├── config/
-│   │   └── exception/
+│   │   ├── user/                  ← Por dominio de negocio, capa técnica anidada adentro
+│   │   │   ├── controller/
+│   │   │   ├── service/
+│   │   │   ├── repository/
+│   │   │   ├── dto/
+│   │   │   ├── entity/
+│   │   │   └── mapper/
+│   │   ├── expense/ debt/ card/ income/ statement/ ai/ report/
+│   │   │   notification/ recurringpayment/ integration/ analysis/  ← mismo patrón por dominio
+│   │   ├── scheduling/            ← Jobs que cruzan dominios (no anidados en ninguno)
+│   │   └── common/
+│   │       ├── security/          ← JWT, rate limiting, filtro de Telegram
+│   │       ├── config/
+│   │       └── exception/
 │   ├── src/main/resources/
 │   │   ├── db/migration/          ← Flyway migrations (V1 en adelante, esquema limpio)
 │   │   └── application*.properties

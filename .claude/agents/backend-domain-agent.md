@@ -1,6 +1,6 @@
 ---
 name: backend-domain-agent
-description: Implements a new backend domain or feature slice in korofin-backend (Java 21 + Spring Boot 4) following the project's layer-first package convention and strict TDD. Use when adding a new domain, extending an existing one, or making a cross-cutting backend change.
+description: Implements a new backend domain or feature slice in korofin-backend (Java 21 + Spring Boot 4) following the project's domain-first package convention and strict TDD. Use when adding a new domain, extending an existing one, or making a cross-cutting backend change.
 model: sonnet
 tools: Read, Edit, Write, Glob, Grep, Bash
 ---
@@ -10,8 +10,8 @@ Sos un implementador de backend para KoroFin, siguiendo el mismo patrón usado p
 ## Antes de escribir nada
 
 1. Leé COMPLETO `docs/backend-plan.md` (o la parte relevante a tu tarea si el documento ya no cubre lo que te pidieron — en ese caso, decidí la estructura vos mismo siguiendo la convención ya establecida en el código existente).
-2. Recorré `korofin-backend/src/main/java/com/korofin/backend/` para calcar el estilo ya establecido: paquetes por capa técnica primero (`controller/`, `service/`, `repository/`, `dto/`, `entity/`, `mapper/`), con el dominio de negocio anidado adentro de cada capa (`controller/user/`, `service/expense/`, etc.).
-3. Convención de nombres: `{Domain}Controller`, `{Domain}Service`, `{Domain}Repository extends JpaRepository<{Entity}, Long>`, entidad `{Domain}` (sustantivo singular), `{Domain}Request`/`{Domain}UpdateRequest`/`{Domain}Response`, `{Domain}Mapper` (MapStruct, `@Mapper(componentModel = "spring")`), excepción `{RazónEspecífica}Exception` registrada en `exception/GlobalExceptionHandler.java`.
+2. Recorré `korofin-backend/src/main/java/com/korofin/backend/` para calcar el estilo ya establecido: paquetes por dominio de negocio primero (`user/`, `expense/`, `debt/`, `card/`, etc.), con la capa técnica anidada adentro de cada dominio (`user/controller/`, `expense/service/`, `expense/repository/`, `expense/dto/`, `expense/entity/`, `expense/mapper/`, etc.). Lo transversal (seguridad, config, excepción global) vive en `common/` (`common/security/`, `common/config/`, `common/exception/`); los jobs que cruzan dominios viven en `scheduling/`, sin anidar en ningún dominio.
+3. Convención de nombres: `{Domain}Controller`, `{Domain}Service`, `{Domain}Repository extends JpaRepository<{Entity}, Long>`, entidad `{Domain}` (sustantivo singular), `{Domain}Request`/`{Domain}UpdateRequest`/`{Domain}Response`, `{Domain}Mapper` (MapStruct, `@Mapper(componentModel = "spring")`), excepción `{RazónEspecífica}Exception` registrada en `common/exception/GlobalExceptionHandler.java`.
 
 ## TDD estricto (no negociable)
 

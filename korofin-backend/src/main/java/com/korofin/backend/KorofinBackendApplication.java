@@ -1,7 +1,7 @@
 package com.korofin.backend;
 
-import com.korofin.backend.config.JwtProperties;
-import com.korofin.backend.service.ai.provider.AiProviderProperties;
+import com.korofin.backend.common.config.JwtProperties;
+import com.korofin.backend.ai.service.provider.AiProviderProperties;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;

@@ -38,7 +38,7 @@
 
 | Decisión | Elegido | Por qué |
 |---|---|---|
-| Estructura de paquetes | Capa técnica primero, dominio adentro (`controller/user`, `service/expense`, ...) | Pedido explícito del dueño. Ver nota de tensión con las prácticas recomendadas en la [sección 12](#nota-tensión-con-las-prácticas-recomendadas-de-spring-boot). |
+| Estructura de paquetes | Dominio de negocio primero, capa técnica anidada adentro (`user/controller`, `expense/service`, ...) | Decisión final del dueño del proyecto tras revisar el código real (ver [sección 12](#12-nueva-estructura-de-paquetes-de-korofin)): alineada con la práctica recomendada de Spring Boot y con cómo ya está organizado FinSmart hoy. Reemplaza la decisión inicial de capa-primero — ver la nota de deliberación histórica en la sección 12 para el contexto completo. |
 | Nombres de paquetes de dominio | En **inglés** (`user`, `expense`, `debt`, `card`, `income`, `statement`, `ai`, `report`, `notification`, `recurringpayment`, `integration`, `analysis`) | FinSmart mezcla paquetes en español (`usuario`, `gastos`) con clases en inglés (`UserController`). `docs/convenciones.md` exige identificadores en inglés; los nombres de paquete son identificadores. Se corrige la inconsistencia en KoroFin. |
 | Auth mobile-only | Bearer access token + refresh token en el body JSON (secure storage del device), **sin cookies, sin CSRF** | FinSmart ya tiene esta rama implementada para clientes `X-Client: mobile` — se convierte en el único camino en vez de una rama condicional. |
 | CORS | Se elimina o se deja opcional/vacío | Un cliente móvil nativo no está sujeto a CORS de navegador; la config actual existía solo para el origin del frontend Next.js. |
@@ -49,7 +49,7 @@
 
 ---
 
-## 2. Mapeo del backend viejo por dominio
+Puse de equipa ganar, yo ya nadie si voy. En mi equipo tenemos de todo y hacemos de todo diez mi monito altos aquí Londres tuyo está como frodo. Diez no me pidas una mano si antes mediste de codo, cuando se come con memo todo, nunca tolle mi mesa solo.## 2. Mapeo del backend viejo por dominio
 
 FinSmart organiza `com.smartfinance.backend` en 12 paquetes de dominio, cada uno con sus propias
 subcapas (`controller/`, `service/`, `repository/`, `model/{dto,entity}`, `mapper/`, `exception/`).
@@ -630,81 +630,91 @@ el cron atrapa CVEs nuevas descubiertas en dependencias ya mergeadas, sin espera
 
 ## 12. Nueva estructura de paquetes de KoroFin
 
-### Decisión
+### Decisión final vigente
 
-Capa técnica primero, dominio de negocio anidado adentro de cada capa — tal como lo pidió el
-dueño del proyecto:
+**Dominio de negocio primero, capa técnica anidada adentro de cada dominio.** Esta es la
+estructura realmente implementada en `korofin-backend`. El dueño del proyecto pidió originalmente
+capa-primero (ver la nota de deliberación histórica al final de esta sección para ese registro),
+pero tras ver el código real reconsideró la decisión y **eligió dominio-primero** — alineado con la
+práctica recomendada de Spring Boot ("organizar por feature/dominio, no por capa") y con cómo ya
+está organizado FinSmart hoy (`smart-finance-backend/.../{usuario,gastos,deudas,...}/{controller,
+service,repository,...}`).
 
 ```
 com.korofin.backend/
-  controller/
-    user/           UserController
-    expense/        ExpenseController, CategoryController
-    income/         IncomeController
-    debt/           DebtController, DebtPaymentController, DebtChargeController
-    card/           CreditCardController, CardMovementController
-    statement/      StatementImportController
-    ai/             AiChatController, AiCategorizationController, AiInsightController,
-                     AiProviderStatusController, AiUsageEventController, ReceiptScanController
-    integration/    TelegramIntegrationController
-    report/         ReportController
-    notification/   NotificationController
-    recurringpayment/  RecurringPaymentController
-    analysis/       AnalysisController
-  service/
-    user/           UserService, RefreshTokenService, AuthSession
-    expense/        ExpenseService, CategoryService
-    income/         IncomeService
-    debt/           DebtService, DebtPaymentService, DebtChargeService
-    card/           CreditCardService, CardMovementService, AmortizationService, CycleCloseService
-    statement/      StatementImportService
+  KorofinBackendApplication.java   (raíz del paquete base, no pertenece a ningún dominio)
+  user/
+    controller/     UserController
+    service/        UserService, RefreshTokenService, AuthSession
+    repository/     UserRepository
+    dto/            RegisterRequest, LoginRequest, RefreshRequest, ...
+    entity/         User, ...
+    mapper/         UserMapper
+    exception/      EmailAlreadyExistsException, InvalidCredentialsException, InvalidRefreshTokenException
+  expense/
+    controller/     ExpenseController, CategoryController
+    service/        ExpenseService, CategoryService
+    repository/     ExpenseRepository
+    dto/ entity/ mapper/ exception/
+    event/          ExpenseCreatedEvent
+  income/           controller/ service/ repository/ dto/ entity/
+  debt/             controller/ service/ repository/ dto/ entity/ mapper/ exception/
+  card/             controller/ service/ repository/ dto/ entity/ mapper/
+  statement/
+    controller/     StatementImportController
+    service/        StatementImportService
       ai/             StatementAiExtractionService
       extraction/     StatementTextExtractor, PdfStatementTextExtractor, XlsxStatementTextExtractor,
                        CsvStatementTextExtractor, StatementTextExtractionService
       dedup/          DescriptionSimilarity, DuplicateDetector
-    ai/             AiChatService, AiCategorizationService, AiInsightService, AiUsageEventService,
+    dto/ exception/  (sin entidad propia)
+  ai/
+    controller/     AiChatController, AiCategorizationController, AiInsightController,
+                     AiProviderStatusController, AiUsageEventController, ReceiptScanController
+    service/        AiChatService, AiCategorizationService, AiInsightService, AiUsageEventService,
                      FinancialSummaryQueryService, ReceiptExtractionService
       provider/       AiChatClient, AiChatOrchestrator, AiProviderRegistry, AiProviderProperties,
                        SupportedAiProvider, ResolvedAiProvider, ChatMessage, ChatCompletionResult,
                        AiCallContext, AiProviderPricing, FinancialContextBuilder
-    integration/
+    repository/     AiMessageRepository, AiUsageEventRepository
+    dto/ entity/ mapper/ exception/
+  integration/
+    controller/     TelegramIntegrationController
+    service/
       telegram/       TelegramLinkService, TelegramLinkCodeStore, TelegramExpenseService,
                        TelegramMessageParser, TelegramIntentDetector
-    report/         ReportService
-    notification/   NotificationService
+    repository/ dto/ entity/ exception/
+  report/           controller/ service/ dto/
+  notification/
+    controller/     NotificationController
+    service/        NotificationService
       channel/        NotificationDispatcher, NotificationSender, EmailNotificationSender,
                        PushNotificationSender, ExpoPushAdapter
-    recurringpayment/  RecurringPaymentService
-    analysis/       FinancialAnalysisService, MonthEndPredictionService
-    scheduling/     PaymentReminderJob, WeeklySummaryJob, InactivityReminderJob,
+    repository/ dto/ entity/ mapper/
+  recurringpayment/ controller/ service/ repository/ dto/ entity/ mapper/ exception/
+  analysis/         controller/ service/ repository/ dto/ entity/
+  scheduling/       PaymentReminderJob, WeeklySummaryJob, InactivityReminderJob,
                      MonthEndPredictionJob, CardCycleCloseJob, OverspendAlertListener,
                      NotificationMessageFormatter
-  repository/
-    user/ expense/ income/ debt/ card/ statement/(n/a, sin entidad propia) ai/ integration/
-    notification/ recurringpayment/ analysis/
-    common/         MonthlyTotalProjection, UserLastActivityProjection (proyecciones compartidas
-                    entre más de un dominio se quedan en un paquete común, no duplicadas)
-  dto/              (o `model/dto` si se prefiere mantener el subnivel `model` — ver nota abajo)
-    user/ expense/ income/ debt/ card/ statement/ ai/ integration/ report/ notification/
-    recurringpayment/ analysis/
-  entity/           (o `model/entity`)
-    user/ expense/ income/ debt/ card/ ai/ integration/ notification/ recurringpayment/ analysis/
-  mapper/
-    user/ expense/ income/ debt/ card/ notification/ recurringpayment/
-  security/         JwtAuthenticationFilter, JwtService, SecurityUtils, RateLimitFilter,
-                    InMemoryRateLimiter, TelegramWebhookFilter
-  config/           SecurityConfig, JwtProperties, ClockConfig, SchedulingConfig, OpenApiConfig,
-                    RestClientConfig, AsyncConfig
-  exception/        GlobalExceptionHandler, ErrorResponse, ResourceNotFoundException,
-                    (excepciones específicas de dominio quedan junto a su dominio si son propias
-                    de un solo controller/service, o acá si son realmente transversales)
+                    (paquete transversal de primer nivel, SIN anidar en ningún dominio: los jobs
+                     cruzan varios dominios a la vez — p. ej. `PaymentReminderJob` lee
+                     `RecurringPayment` y `Debt` — así que anidarlo en uno solo sería arbitrario)
+  common/
+    security/       JwtAuthenticationFilter, JwtService, SecurityUtils, RateLimitFilter,
+                     InMemoryRateLimiter, TelegramWebhookFilter
+    config/         SecurityConfig, JwtProperties, ClockConfig, SchedulingConfig, OpenApiConfig,
+                     RestClientConfig, AsyncConfig
+    exception/      GlobalExceptionHandler, ErrorResponse, ResourceNotFoundException
+                    (transversales; las excepciones específicas de un solo dominio viven en
+                     `{dominio}/exception/`, no acá)
+    repository/     MonthlyTotalProjection, UserLastActivityProjection (proyecciones compartidas
+                     entre más de un dominio, no duplicadas por dominio)
 ```
 
-**Nota sobre `dto`/`entity` vs. `model/dto`+`model/entity`:** FinSmart usa `model/dto` y
-`model/entity` como subcarpetas dentro de cada dominio. Para KoroFin, con capa-primero, se recomienda
-aplanar a `dto/` y `entity/` como capas de primer nivel (sin el nivel intermedio `model/`) — es
-coherente con que `controller/`, `service/`, `repository/` también son de primer nivel, y evita un
-nivel de anidación que ya no aporta nada una vez que la capa es el criterio de organización externo.
+**Nota sobre `dto`/`entity` vs. `model/dto`+`model/entity`:** igual que en capa-primero, se aplana a
+`dto/` y `entity/` como subpaquetes directos de cada dominio (sin el nivel intermedio `model/`) — es
+coherente con que `controller/`, `service/`, `repository/` también cuelgan directo del dominio, y
+evita un nivel de anidación que no aporta nada.
 
 ### Convención de nombres de clases (obligatoria, para todos los dominios)
 
@@ -723,9 +733,13 @@ nivel de anidación que ya no aporta nada una vez que la capa es el criterio de 
 
 Este es exactamente el patrón que FinSmart ya usa hoy dentro de cada dominio (DTOs de
 request/response explícitos en vez de un `Dto` genérico, mappers MapStruct dedicados, excepciones
-específicas por caso) — se conserva sin cambios, solo se reubica por capa.
+específicas por caso) — se conserva sin cambios, solo se reubica por dominio.
 
-### Nota: tensión con las prácticas recomendadas de Spring Boot
+### Nota histórica: deliberación original capa-primero vs. dominio-primero
+
+*(Este registro se conserva como contexto histórico de la deliberación. La decisión final vigente
+es dominio-primero — ver "Decisión final vigente" al principio de esta sección. Lo que sigue es la
+nota original, escrita cuando la instrucción del dueño del proyecto era capa-primero.)*
 
 La skill `java-springboot` cargada para este análisis recomienda explícitamente **organizar por
 feature/dominio, no por capa** ("Package Structure: Organize code by feature/domain... rather than
@@ -733,15 +747,16 @@ by layer"), y es la guía predominante en la comunidad Spring moderna (mejor enc
 dominio, menos acoplamiento cruzado entre paquetes, más fácil de extraer un dominio a un servicio
 separado si hiciera falta más adelante). La skill `java-coding-standards`, en cambio, muestra un
 ejemplo de estructura por capa (`config/ controller/ service/ repository/ domain/ dto/ util/`) sin
-anidar dominio adentro — más parecido a lo pedido, aunque sin el nivel de dominio explícito.
+anidar dominio adentro — más parecido a lo originalmente pedido, aunque sin el nivel de dominio
+explícito.
 
-Es una decisión real con trade-offs, no una elección neutra:
+Era una decisión real con trade-offs, no una elección neutra:
 
-- **A favor de capa-primero (lo pedido):** consistente con cómo ya estaba organizado FinSmart antes
-  del refactor a dominio-primero (según el propio historial del proyecto), más fácil de navegar
-  para alguien que piensa "quiero ver todos los controllers" de un vistazo, y con dominio anidado
-  adentro de cada capa se recupera buena parte de la cohesión por dominio que se perdería con
-  capa-primero "plano" (sin el nivel de dominio).
+- **A favor de capa-primero (lo pedido originalmente):** consistente con cómo ya estaba organizado
+  FinSmart antes del refactor a dominio-primero (según el propio historial del proyecto), más fácil
+  de navegar para alguien que piensa "quiero ver todos los controllers" de un vistazo, y con dominio
+  anidado adentro de cada capa se recupera buena parte de la cohesión por dominio que se perdería
+  con capa-primero "plano" (sin el nivel de dominio).
 - **En contra (costo real a mediano plazo):** a medida que la app crezca, cambiar una funcionalidad
   de un dominio obliga a tocar archivos en 5-6 carpetas de primer nivel distintas (`controller/x`,
   `service/x`, `repository/x`, `dto/x`, `entity/x`, `mapper/x`) en vez de una sola; es más fácil que
@@ -749,12 +764,16 @@ Es una decisión real con trade-offs, no una elección neutra:
   el mismo nivel; y es la organización que Spring Boot y la mayoría de guías actuales desaconsejan
   para proyectos que esperan crecer.
 
-**Se sigue la instrucción explícita del dueño del proyecto** (capa-primero, dominio anidado
-adentro), documentada acá para que quede registro consciente de la decisión y su costo, no como una
-elección por defecto sin evaluar. Mitigación aplicada: los subpaquetes de dominio se mantienen
-**estructuralmente espejados** en cada capa (si existe `service/card/`, existe también
-`repository/card/`, `dto/card/`, `entity/card/` con los mismos nombres) para que la ubicación de
-cualquier clase sea predecible sin tener que buscarla.
+**Decisión final vigente:** el dueño del proyecto reconsideró la instrucción original después de ver
+el código real de KoroFin ya implementado, y **eligió dominio-primero** — el mismo argumento "en
+contra" de arriba (5-6 carpetas distintas por cada cambio de funcionalidad, imports cruzados más
+fáciles entre dominios) fue el que terminó de inclinar la decisión, sumado a que es la organización
+recomendada por Spring Boot y la que ya usa FinSmart hoy. La estructura implementada es la descrita
+en "Decisión final vigente" al principio de esta sección: cada dominio es un paquete de primer nivel
+con sus propias capas técnicas anidadas adentro (`user/controller`, `user/service`,
+`user/repository`, ...), con `common/` para lo transversal (`security`, `config`,
+`exception` genérica, `repository` de proyecciones compartidas) y `scheduling/` como paquete de
+primer nivel aparte para los jobs que cruzan dominios.
 
 ---
 
