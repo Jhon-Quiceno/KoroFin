@@ -172,10 +172,10 @@ Ver `docs/backend-plan.md` para el detalle completo de cada dominio, sus endpoin
 ### 1. Backend
 
 ```bash
-cd korofin-backend
-cp .env.example .env    # completar valores locales
-./mvnw.cmd clean install -DskipTests
+cp .env.example .env    # completar valores locales (raíz del repo, lo lee docker-compose.yml)
 docker compose up db -d
+cd korofin-backend
+./mvnw.cmd clean install -DskipTests
 ./mvnw.cmd spring-boot:run -Dspring-boot.run.profiles=dev
 ```
 

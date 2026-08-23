@@ -6,6 +6,9 @@
 # CodeGraph index (local cache, se regenera)
 .codegraph/
 
+# Cache local de registro de skills
+.atl/
+
 # OS
 .DS_Store
 Thumbs.db

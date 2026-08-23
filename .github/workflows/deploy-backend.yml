@@ -1,0 +1,130 @@
+name: Deploy Backend
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "korofin-backend/**"
+      - ".github/workflows/deploy-backend.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "korofin-backend/**"
+      - ".github/workflows/deploy-backend.yml"
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: deploy-backend-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    name: deploy-cloud-run
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v3
+        with:
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud CLI
+        uses: google-github-actions/setup-gcloud@v2
+
+      # Set completo de las variables que application.properties declara como configurables (ver
+      # docs/backend-plan.md secciones 10 y 14.5) - a diferencia del workflow original de FinSmart,
+      # que quedo desactualizado y corria varias en produccion siempre con su default (ver seccion
+      # 6 y 11.3 del plan). Ninguna de las 3 variables de cookie de refresh token existe aca: KoroFin
+      # es mobile-only, el refresh token siempre viaja en el body JSON (ver seccion 3 del plan).
+      - name: Write Cloud Run env vars file
+        run: |
+          cat > /tmp/cloud-run-env-vars.yaml <<EOF
+          SPRING_PROFILES_ACTIVE: "prod"
+          SPRING_DATASOURCE_URL: "${{ secrets.SPRING_DATASOURCE_URL }}"
+          SPRING_DATASOURCE_USERNAME: "${{ secrets.SPRING_DATASOURCE_USERNAME }}"
+          SPRING_DATASOURCE_PASSWORD: "${{ secrets.SPRING_DATASOURCE_PASSWORD }}"
+          JWT_SECRET: "${{ secrets.JWT_SECRET }}"
+          JWT_ISSUER: "korofin-backend"
+          JWT_ACCESS_EXPIRATION_MS: "900000"
+          JWT_REFRESH_EXPIRATION_MS: "604800000"
+          RESEND_API_KEY: "${{ secrets.RESEND_API_KEY }}"
+          MAIL_FROM: "${{ secrets.MAIL_FROM }}"
+          AI_PROVIDER_PRIORITY: "${{ secrets.AI_PROVIDER_PRIORITY }}"
+          NVIDIA_API_KEY: "${{ secrets.NVIDIA_API_KEY }}"
+          NVIDIA_MODEL: "${{ secrets.NVIDIA_MODEL }}"
+          NVIDIA_VISION_MODEL: "${{ secrets.NVIDIA_VISION_MODEL }}"
+          GEMINI_API_KEY: "${{ secrets.GEMINI_API_KEY }}"
+          GEMINI_MODEL: "${{ secrets.GEMINI_MODEL }}"
+          GEMINI_VISION_MODEL: "${{ secrets.GEMINI_VISION_MODEL }}"
+          OPENCODE_API_KEY: "${{ secrets.OPENCODE_API_KEY }}"
+          OPENCODE_MODEL: "${{ secrets.OPENCODE_MODEL }}"
+          OPENROUTER_API_KEY: "${{ secrets.OPENROUTER_API_KEY }}"
+          OPENROUTER_MODEL: "${{ secrets.OPENROUTER_MODEL }}"
+          OPENROUTER_VISION_MODEL: "${{ secrets.OPENROUTER_VISION_MODEL }}"
+          GROQ_API_KEY: "${{ secrets.GROQ_API_KEY }}"
+          GROQ_MODEL: "${{ secrets.GROQ_MODEL }}"
+          AI_TASK_PRIORITY_CHAT: "${{ secrets.AI_TASK_PRIORITY_CHAT }}"
+          AI_TASK_PRIORITY_CATEGORIZE: "${{ secrets.AI_TASK_PRIORITY_CATEGORIZE }}"
+          AI_TASK_PRIORITY_INSIGHT: "${{ secrets.AI_TASK_PRIORITY_INSIGHT }}"
+          AI_TASK_PRIORITY_STATEMENT_EXTRACT: "${{ secrets.AI_TASK_PRIORITY_STATEMENT_EXTRACT }}"
+          AI_MONTHLY_MESSAGE_LIMIT: "5"
+          AI_READ_TIMEOUT_SECONDS: "60"
+          RATE_LIMIT_LOGIN_MAX_REQUESTS: "5"
+          RATE_LIMIT_LOGIN_WINDOW_SECONDS: "60"
+          RATE_LIMIT_REGISTER_MAX_REQUESTS: "3"
+          RATE_LIMIT_REGISTER_WINDOW_SECONDS: "300"
+          RATE_LIMIT_AI_CHAT_MAX_REQUESTS: "10"
+          RATE_LIMIT_AI_CHAT_WINDOW_SECONDS: "60"
+          RATE_LIMIT_RECEIPT_SCAN_MAX_REQUESTS: "10"
+          RATE_LIMIT_RECEIPT_SCAN_WINDOW_SECONDS: "60"
+          APP_JOBS_ENABLED: "true"
+          APP_JOBS_PAYMENT_REMINDER_CRON: "0 0 8 * * *"
+          APP_JOBS_WEEKLY_SUMMARY_CRON: "0 0 7 * * MON"
+          APP_JOBS_INACTIVITY_REMINDER_CRON: "0 0 9 * * *"
+          APP_JOBS_MONTH_END_PREDICTION_CRON: "0 30 8 * * *"
+          APP_JOBS_CARD_CYCLE_CLOSE_CRON: "0 0 6 * * *"
+          TELEGRAM_WEBHOOK_SECRET: "${{ secrets.TELEGRAM_WEBHOOK_SECRET }}"
+          EOF
+
+      # En un PR: despliega una revision real (prueba que auth+build+deploy funcionan) pero nunca
+      # le mueve trafico, para poder validar un PR con seguridad antes de mergear.
+      - name: Deploy to Cloud Run (validate only, no traffic)
+        if: github.event_name == 'pull_request'
+        run: |
+          gcloud run deploy korofin-backend \
+            --source ./korofin-backend \
+            --region us-central1 \
+            --memory 1Gi \
+            --allow-unauthenticated \
+            --no-traffic \
+            --tag "pr-${{ github.event.pull_request.number }}" \
+            --env-vars-file=/tmp/cloud-run-env-vars.yaml
+
+      - name: Deploy to Cloud Run (production)
+        if: github.event_name == 'push'
+        run: |
+          gcloud run deploy korofin-backend \
+            --source ./korofin-backend \
+            --region us-central1 \
+            --memory 1Gi \
+            --allow-unauthenticated \
+            --env-vars-file=/tmp/cloud-run-env-vars.yaml
+
+      # Una vez que algun deploy usa --no-traffic (la validacion de PR de arriba), Cloud Run fija
+      # el trafico a una revision especifica en vez de seguir LATEST. Forzarlo de nuevo tras cada
+      # deploy de produccion.
+      - name: Route traffic to latest revision
+        if: github.event_name == 'push'
+        run: |
+          gcloud run services update-traffic korofin-backend \
+            --region us-central1 \
+            --to-latest
