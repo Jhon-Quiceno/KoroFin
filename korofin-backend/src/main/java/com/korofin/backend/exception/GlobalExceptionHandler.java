@@ -1,5 +1,6 @@
 package com.korofin.backend.exception;
 
+import com.korofin.backend.exception.expense.DuplicateCategoryException;
 import com.korofin.backend.exception.user.EmailAlreadyExistsException;
 import com.korofin.backend.exception.user.InvalidCredentialsException;
 import com.korofin.backend.exception.user.InvalidRefreshTokenException;
@@ -22,9 +23,10 @@ import java.time.Instant;
 
 /**
  * Manejador global de excepciones. Traduce las excepciones de dominio y de framework a
- * {@link ErrorResponse} con el código HTTP correspondiente. Se arranca cubriendo solo lo que
- * necesita el dominio {@code user} (fase 1) más los casos genéricos transversales; los dominios
- * siguientes agregan sus propios {@code @ExceptionHandler} acá a medida que se implementan.
+ * {@link ErrorResponse} con el código HTTP correspondiente. Arrancó cubriendo solo lo que
+ * necesitaba el dominio {@code user} (fase 1) más los casos genéricos transversales; los dominios
+ * siguientes ({@code expense}/{@code income} en fase 2, y los que vengan después) agregan sus
+ * propios {@code @ExceptionHandler} acá a medida que se implementan.
  */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
@@ -34,6 +36,14 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(EmailAlreadyExistsException.class)
     public ResponseEntity<ErrorResponse> handleEmailAlreadyExists(
             EmailAlreadyExistsException ex,
+            HttpServletRequest request
+    ) {
+        return buildErrorResponse(HttpStatus.CONFLICT, ex.getMessage(), request.getRequestURI());
+    }
+
+    @ExceptionHandler(DuplicateCategoryException.class)
+    public ResponseEntity<ErrorResponse> handleDuplicateCategory(
+            DuplicateCategoryException ex,
             HttpServletRequest request
     ) {
         return buildErrorResponse(HttpStatus.CONFLICT, ex.getMessage(), request.getRequestURI());

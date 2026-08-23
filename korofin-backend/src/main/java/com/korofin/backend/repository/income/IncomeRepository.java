@@ -1,0 +1,44 @@
+package com.korofin.backend.repository.income;
+
+import com.korofin.backend.entity.income.Income;
+import com.korofin.backend.repository.common.MonthlyTotalProjection;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+import java.time.LocalDate;
+import java.util.List;
+import java.util.Optional;
+
+/**
+ * Acceso a persistencia de {@link Income}, siempre delimitado por dueño.
+ *
+ * <p>El filtro de período se arma vía {@link IncomeSpecifications} en vez de un {@code @Query}
+ * estático, por la misma razón que {@code ExpenseRepository}: un patrón JPQL
+ * {@code :param IS NULL OR ...} falla contra PostgreSQL cuando el parámetro es nulo.
+ */
+public interface IncomeRepository extends JpaRepository<Income, Long>, JpaSpecificationExecutor<Income> {
+
+    Optional<Income> findByIdAndUser_Id(Long id, Long userId);
+
+    @Query("SELECT i.category.id AS categoryId, i.category.name AS categoryName, SUM(i.amount) AS total "
+            + "FROM Income i WHERE i.user.id = :userId AND i.date >= :start AND i.date <= :end "
+            + "GROUP BY i.category.id, i.category.name "
+            + "ORDER BY SUM(i.amount) DESC")
+    List<IncomeCategoryTotalProjection> findTopCategoriesByUserAndPeriod(
+            @Param("userId") Long userId, @Param("start") LocalDate start, @Param("end") LocalDate end
+    );
+
+    /**
+     * Totales agrupados por mes calendario en {@code [start, end]}, una fila por mes que tenga al
+     * menos un ingreso. Los meses sin ingresos simplemente están ausentes del resultado; quien la
+     * consuma debe completarlos como cero.
+     */
+    @Query("SELECT YEAR(i.date) AS periodYear, MONTH(i.date) AS periodMonth, SUM(i.amount) AS total "
+            + "FROM Income i WHERE i.user.id = :userId AND i.date >= :start AND i.date <= :end "
+            + "GROUP BY YEAR(i.date), MONTH(i.date)")
+    List<MonthlyTotalProjection> sumAmountByUserGroupedByMonth(
+            @Param("userId") Long userId, @Param("start") LocalDate start, @Param("end") LocalDate end
+    );
+}

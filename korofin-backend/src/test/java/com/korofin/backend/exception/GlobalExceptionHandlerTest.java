@@ -1,5 +1,6 @@
 package com.korofin.backend.exception;
 
+import com.korofin.backend.exception.expense.DuplicateCategoryException;
 import com.korofin.backend.exception.user.EmailAlreadyExistsException;
 import com.korofin.backend.exception.user.InvalidCredentialsException;
 import com.korofin.backend.exception.user.InvalidRefreshTokenException;
@@ -35,6 +36,18 @@ class GlobalExceptionHandlerTest {
         assertThat(response.getBody().message()).isEqualTo("correo ya registrado");
         assertThat(response.getBody().status()).isEqualTo(409);
         assertThat(response.getBody().path()).isEqualTo("/api/users/register");
+    }
+
+    @Test
+    void handleDuplicateCategoryReturns409() {
+        Mockito.when(request.getRequestURI()).thenReturn("/api/categories");
+
+        ResponseEntity<ErrorResponse> response = handler.handleDuplicateCategory(
+                new DuplicateCategoryException("ya existe una categoría con ese nombre y tipo"), request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().message()).isEqualTo("ya existe una categoría con ese nombre y tipo");
     }
 
     @Test
