@@ -7,6 +7,10 @@
 .DS_Store
 Thumbs.db
 
+# Python cache (scripts dentro de skills de Claude)
+__pycache__/
+*.pyc
+
 # Environment files (never commit secrets)
 .env
 .env.*
