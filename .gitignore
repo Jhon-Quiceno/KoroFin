@@ -1,0 +1,22 @@
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment files (never commit secrets)
+.env
+.env.*
+!.env.example
+
+# Backend (Java/Maven) — korofin-backend/
+korofin-backend/target/
+korofin-backend/.mvn/wrapper/maven-wrapper.jar
+
+# Mobile (Flutter) — korofin_mobile/ already has its own .gitignore,
+# this only covers stray build output if it's ever generated outside it.
+korofin_mobile/build/
+korofin_mobile/.dart_tool/
