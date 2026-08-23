@@ -78,7 +78,21 @@ public class ExpenseService {
 
     @Transactional
     public ExpenseResponse createExpense(ExpenseRequest request) {
-        Long userId = SecurityUtils.getCurrentUserId();
+        return createExpense(SecurityUtils.getCurrentUserId(), request);
+    }
+
+    /**
+     * Igual que {@link #createExpense(ExpenseRequest)} pero para un llamador que ya resolvió
+     * {@code userId} por su cuenta en vez de leerlo de {@link SecurityUtils#getCurrentUserId()}.
+     *
+     * <p>Existe para el dominio {@code integration} (Telegram, fase 7): un webhook de n8n es
+     * servidor-a-servidor, sin {@code SecurityContext} poblado por {@code JwtAuthenticationFilter}
+     * — {@code TelegramExpenseService} resuelve el {@code userId} del chat vinculado por su cuenta
+     * y necesita pasarlo explícito acá. Fase 2 omitió este overload a propósito (YAGNI, ningún
+     * dominio lo necesitaba todavía) — ver docs/backend-plan.md sección 2.5.
+     */
+    @Transactional
+    public ExpenseResponse createExpense(Long userId, ExpenseRequest request) {
         Expense expense = expenseMapper.toEntity(request);
         expense.setUser(userRepository.getReferenceById(userId));
         expense.setCategory(resolveOwnedCategory(request.categoryId(), userId));

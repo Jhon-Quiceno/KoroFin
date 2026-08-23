@@ -2,6 +2,7 @@ package com.korofin.backend.config;
 
 import com.korofin.backend.security.JwtAuthenticationFilter;
 import com.korofin.backend.security.RateLimitFilter;
+import com.korofin.backend.security.TelegramWebhookFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -31,13 +32,16 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final RateLimitFilter rateLimitFilter;
+    private final TelegramWebhookFilter telegramWebhookFilter;
 
     public SecurityConfig(
             JwtAuthenticationFilter jwtAuthenticationFilter,
-            RateLimitFilter rateLimitFilter
+            RateLimitFilter rateLimitFilter,
+            TelegramWebhookFilter telegramWebhookFilter
     ) {
         this.jwtAuthenticationFilter = jwtAuthenticationFilter;
         this.rateLimitFilter = rateLimitFilter;
+        this.telegramWebhookFilter = telegramWebhookFilter;
     }
 
     @Bean
@@ -58,8 +62,19 @@ public class SecurityConfig {
                     "/swagger-ui.html",
                     "/actuator/health"
                 ).permitAll()
+                // Sin JWT a propósito: n8n es servidor-a-servidor y no tiene sesión de usuario.
+                // Su propia seguridad la aplica TelegramWebhookFilter (secreto compartido), no
+                // Spring Security — ver docs/backend-plan.md sección 5.
+                .requestMatchers(
+                    "/api/integrations/telegram/confirm-link",
+                    "/api/integrations/telegram/expenses",
+                    "/api/integrations/telegram/receipts"
+                ).permitAll()
                 .anyRequest().authenticated()
             )
+            // Corre ANTES que JwtAuthenticationFilter: las rutas de webhook de Telegram nunca
+            // llevan un Authorization Bearer, así que su rechazo/aceptación no depende de él.
+            .addFilterBefore(telegramWebhookFilter, UsernamePasswordAuthenticationFilter.class)
             .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
             // Corre DESPUÉS de JwtAuthenticationFilter: las reglas de esta fase (login/register)
             // son IP-only y no lo necesitan, pero deja la cadena lista para que las reglas de

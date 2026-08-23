@@ -1,6 +1,10 @@
 package com.korofin.backend.exception;
 
 import com.korofin.backend.exception.expense.DuplicateCategoryException;
+import com.korofin.backend.exception.integration.TelegramChatNotLinkedException;
+import com.korofin.backend.exception.integration.TelegramImplausibleMovementException;
+import com.korofin.backend.exception.integration.TelegramInvalidLinkCodeException;
+import com.korofin.backend.exception.integration.TelegramRateLimitExceededException;
 import com.korofin.backend.exception.user.EmailAlreadyExistsException;
 import com.korofin.backend.exception.user.InvalidCredentialsException;
 import com.korofin.backend.exception.user.InvalidRefreshTokenException;
@@ -88,6 +92,47 @@ class GlobalExceptionHandlerTest {
                 new AccessDeniedException("no autenticado"), request);
 
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void handleTelegramImplausibleMovementReturns422() {
+        Mockito.when(request.getRequestURI()).thenReturn("/api/integrations/telegram/expenses");
+
+        ResponseEntity<ErrorResponse> response = handler.handleTelegramImplausibleMovement(
+                new TelegramImplausibleMovementException("no pude identificar un monto"), request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().message()).isEqualTo("no pude identificar un monto");
+    }
+
+    @Test
+    void handleTelegramInvalidLinkCodeReturns400() {
+        Mockito.when(request.getRequestURI()).thenReturn("/api/integrations/telegram/confirm-link");
+
+        ResponseEntity<ErrorResponse> response = handler.handleTelegramInvalidLinkCode(
+                new TelegramInvalidLinkCodeException("código inválido o expirado"), request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    void handleTelegramRateLimitExceededReturns429() {
+        Mockito.when(request.getRequestURI()).thenReturn("/api/integrations/telegram/expenses");
+
+        ResponseEntity<ErrorResponse> response = handler.handleTelegramRateLimitExceeded(
+                new TelegramRateLimitExceededException("demasiados mensajes"), request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.TOO_MANY_REQUESTS);
+    }
+
+    @Test
+    void handleNotFoundReturns404ForTelegramChatNotLinked() {
+        Mockito.when(request.getRequestURI()).thenReturn("/api/integrations/telegram/expenses");
+
+        ResponseEntity<ErrorResponse> response = handler.handleNotFound(new TelegramChatNotLinkedException(), request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
     @Test

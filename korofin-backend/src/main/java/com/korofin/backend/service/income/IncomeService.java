@@ -57,7 +57,19 @@ public class IncomeService {
 
     @Transactional
     public IncomeResponse createIncome(IncomeRequest request) {
-        Long userId = SecurityUtils.getCurrentUserId();
+        return createIncome(SecurityUtils.getCurrentUserId(), request);
+    }
+
+    /**
+     * Igual que {@link #createIncome(IncomeRequest)} pero para un llamador que ya resolvió
+     * {@code userId} por su cuenta en vez de leerlo de {@link SecurityUtils#getCurrentUserId()}.
+     *
+     * <p>Existe por la misma razón que {@code ExpenseService#createExpense(Long, ExpenseRequest)}:
+     * el dominio {@code integration} (Telegram, fase 7) registra movimientos servidor-a-servidor,
+     * sin {@code SecurityContext} poblado.
+     */
+    @Transactional
+    public IncomeResponse createIncome(Long userId, IncomeRequest request) {
         Income income = incomeMapper.toEntity(request);
         income.setUser(userRepository.getReferenceById(userId));
         income.setCategory(resolveOwnedCategory(request.categoryId(), userId));

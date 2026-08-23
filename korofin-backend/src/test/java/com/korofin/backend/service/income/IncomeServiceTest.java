@@ -175,6 +175,26 @@ class IncomeServiceTest {
         Assertions.assertTrue(result.isEmpty());
     }
 
+    @Test
+    void createIncomeWithExplicitUserIdDoesNotReadSecurityContext() {
+        IncomeRequest request = new IncomeRequest(BigDecimal.valueOf(500000), "Freelance", LocalDate.now(), null);
+        Income mappedIncome = new Income();
+        Income savedIncome = new Income();
+        savedIncome.setId(88L);
+
+        when(incomeMapper.toEntity(request)).thenReturn(mappedIncome);
+        when(userRepository.getReferenceById(9L)).thenReturn(buildUser(9L));
+        when(incomeRepository.save(mappedIncome)).thenReturn(savedIncome);
+        when(incomeMapper.toResponse(savedIncome)).thenReturn(
+                new IncomeResponse(88L, BigDecimal.valueOf(500000), "Freelance", LocalDate.now(), null, null)
+        );
+
+        IncomeResponse response = incomeService.createIncome(9L, request);
+
+        Assertions.assertEquals(88L, response.id());
+        Assertions.assertEquals(9L, mappedIncome.getUser().getId());
+    }
+
     private void setAuthenticatedUser(Long userId) {
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(userId, null)

@@ -244,6 +244,28 @@ class ExpenseServiceTest {
         Assertions.assertTrue(result.isEmpty());
     }
 
+    @Test
+    void createExpenseWithExplicitUserIdDoesNotReadSecurityContext() {
+        ExpenseRequest request = new ExpenseRequest(
+                BigDecimal.valueOf(50), "Uber", LocalDate.now(), PaymentMethodType.OTHER, null
+        );
+        Expense mappedExpense = new Expense();
+        Expense savedExpense = new Expense();
+        savedExpense.setId(77L);
+
+        when(expenseMapper.toEntity(request)).thenReturn(mappedExpense);
+        when(userRepository.getReferenceById(9L)).thenReturn(buildUser(9L));
+        when(expenseRepository.save(mappedExpense)).thenReturn(savedExpense);
+        when(expenseMapper.toResponse(savedExpense)).thenReturn(
+                new ExpenseResponse(77L, BigDecimal.valueOf(50), "Uber", LocalDate.now(), PaymentMethodType.OTHER, null, null)
+        );
+
+        ExpenseResponse response = expenseService.createExpense(9L, request);
+
+        Assertions.assertEquals(77L, response.id());
+        Assertions.assertEquals(9L, mappedExpense.getUser().getId());
+    }
+
     private void setAuthenticatedUser(Long userId) {
         SecurityContextHolder.getContext().setAuthentication(
                 new UsernamePasswordAuthenticationToken(userId, null)

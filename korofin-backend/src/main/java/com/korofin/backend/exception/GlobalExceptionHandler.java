@@ -14,6 +14,9 @@ import com.korofin.backend.exception.card.CardPurchaseOverLimitException;
 import com.korofin.backend.exception.card.InstallmentAmountTooLowException;
 import com.korofin.backend.exception.debt.DebtPaymentExceedsBalanceException;
 import com.korofin.backend.exception.expense.DuplicateCategoryException;
+import com.korofin.backend.exception.integration.TelegramImplausibleMovementException;
+import com.korofin.backend.exception.integration.TelegramInvalidLinkCodeException;
+import com.korofin.backend.exception.integration.TelegramRateLimitExceededException;
 import com.korofin.backend.exception.recurringpayment.RecurringPaymentAlreadyPaidException;
 import com.korofin.backend.exception.recurringpayment.RecurringPaymentNotDueYetException;
 import com.korofin.backend.exception.statement.EmptyStatementTextException;
@@ -161,6 +164,47 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
         return buildErrorResponse(HttpStatus.CONFLICT, ex.getMessage(), request.getRequestURI());
+    }
+
+    /**
+     * Dominio {@code integration} (Telegram, fase 7): {@code TelegramMessageParser} no pudo
+     * extraer un monto plausible del mensaje, o {@code ReceiptExtractionService} no reconoció la
+     * imagen como un recibo real. {@code 422}: el request llegó bien formado, su contenido no se
+     * pudo interpretar como un movimiento válido — mismo criterio que las excepciones de
+     * {@code statement} de más arriba. El mensaje es amigable a propósito: n8n lo reenvía tal cual
+     * al chat de Telegram.
+     */
+    @ExceptionHandler(TelegramImplausibleMovementException.class)
+    public ResponseEntity<ErrorResponse> handleTelegramImplausibleMovement(
+            TelegramImplausibleMovementException ex,
+            HttpServletRequest request
+    ) {
+        return buildErrorResponse(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage(), request.getRequestURI());
+    }
+
+    /**
+     * Dominio {@code integration}: el código de vínculo de un solo uso no existe, ya se consumió,
+     * o expiró. Un error de entrada del cliente (typo, código vencido), no un recurso ausente.
+     */
+    @ExceptionHandler(TelegramInvalidLinkCodeException.class)
+    public ResponseEntity<ErrorResponse> handleTelegramInvalidLinkCode(
+            TelegramInvalidLinkCodeException ex,
+            HttpServletRequest request
+    ) {
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, ex.getMessage(), request.getRequestURI());
+    }
+
+    /**
+     * Dominio {@code integration}: un {@code chatId} de Telegram superó su propio límite de
+     * mensajes ({@code TelegramExpenseService}, rate limit independiente del
+     * {@code RateLimitFilter} global).
+     */
+    @ExceptionHandler(TelegramRateLimitExceededException.class)
+    public ResponseEntity<ErrorResponse> handleTelegramRateLimitExceeded(
+            TelegramRateLimitExceededException ex,
+            HttpServletRequest request
+    ) {
+        return buildErrorResponse(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage(), request.getRequestURI());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
