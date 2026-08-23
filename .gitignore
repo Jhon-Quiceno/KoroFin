@@ -3,6 +3,9 @@
 *.iml
 .vscode/
 
+# CodeGraph index (local cache, se regenera)
+.codegraph/
+
 # OS
 .DS_Store
 Thumbs.db

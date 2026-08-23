@@ -22,6 +22,13 @@ public interface IncomeRepository extends JpaRepository<Income, Long>, JpaSpecif
 
     Optional<Income> findByIdAndUser_Id(Long id, Long userId);
 
+    /**
+     * Ingresos del usuario en {@code [start, end]} (inclusive), usado por {@code DuplicateDetector}
+     * (dominio {@code statement}) para comparar movimientos recién extraídos de un extracto contra
+     * los ya registrados en la ventana de fechas relevante.
+     */
+    List<Income> findByUser_IdAndDateBetween(Long userId, LocalDate start, LocalDate end);
+
     @Query("SELECT i.category.id AS categoryId, i.category.name AS categoryName, SUM(i.amount) AS total "
             + "FROM Income i WHERE i.user.id = :userId AND i.date >= :start AND i.date <= :end "
             + "GROUP BY i.category.id, i.category.name "

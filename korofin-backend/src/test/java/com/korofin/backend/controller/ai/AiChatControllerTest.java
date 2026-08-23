@@ -2,6 +2,7 @@ package com.korofin.backend.controller.ai;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.korofin.backend.config.JwtProperties;
 import com.korofin.backend.config.SecurityConfig;
 import com.korofin.backend.dto.ai.AiUsageResponse;
 import com.korofin.backend.dto.ai.ChatMessageResponse;
@@ -51,6 +52,9 @@ class AiChatControllerTest {
 
     @MockitoBean
     private AiChatService aiChatService;
+
+    @MockitoBean
+    private JwtProperties jwtProperties;
 
     @MockitoBean
     private JwtService jwtService;

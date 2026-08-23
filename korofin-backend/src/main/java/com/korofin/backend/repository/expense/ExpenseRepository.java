@@ -27,6 +27,13 @@ public interface ExpenseRepository extends JpaRepository<Expense, Long>, JpaSpec
 
     Optional<Expense> findByIdAndUser_Id(Long id, Long userId);
 
+    /**
+     * Gastos del usuario en {@code [start, end]} (inclusive), usado por {@code DuplicateDetector}
+     * (dominio {@code statement}) para comparar movimientos recién extraídos de un extracto contra
+     * los ya registrados en la ventana de fechas relevante.
+     */
+    List<Expense> findByUser_IdAndDateBetween(Long userId, LocalDate start, LocalDate end);
+
     @Query("SELECT e.category.id AS categoryId, e.category.name AS categoryName, SUM(e.amount) AS total "
             + "FROM Expense e WHERE e.user.id = :userId AND e.date >= :start AND e.date <= :end "
             + "GROUP BY e.category.id, e.category.name "

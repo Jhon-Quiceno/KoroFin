@@ -1,5 +1,6 @@
 package com.korofin.backend.controller.ai;
 
+import com.korofin.backend.config.JwtProperties;
 import com.korofin.backend.config.SecurityConfig;
 import com.korofin.backend.dto.ai.AiUsageEventSummaryResponse;
 import com.korofin.backend.entity.ai.AiUsageEventType;
@@ -35,6 +36,9 @@ class AiUsageEventControllerTest {
 
     @MockitoBean
     private AiUsageEventService aiUsageEventService;
+
+    @MockitoBean
+    private JwtProperties jwtProperties;
 
     @MockitoBean
     private JwtService jwtService;

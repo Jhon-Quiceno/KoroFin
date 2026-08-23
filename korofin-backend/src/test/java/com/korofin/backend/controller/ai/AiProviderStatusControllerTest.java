@@ -1,5 +1,6 @@
 package com.korofin.backend.controller.ai;
 
+import com.korofin.backend.config.JwtProperties;
 import com.korofin.backend.config.SecurityConfig;
 import com.korofin.backend.repository.user.UserRepository;
 import com.korofin.backend.security.JwtService;
@@ -31,6 +32,9 @@ class AiProviderStatusControllerTest {
 
     @MockitoBean
     private AiProviderRegistry registry;
+
+    @MockitoBean
+    private JwtProperties jwtProperties;
 
     @MockitoBean
     private JwtService jwtService;

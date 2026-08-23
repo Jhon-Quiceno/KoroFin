@@ -14,6 +14,10 @@ import com.korofin.backend.exception.card.CardPurchaseOverLimitException;
 import com.korofin.backend.exception.card.InstallmentAmountTooLowException;
 import com.korofin.backend.exception.debt.DebtPaymentExceedsBalanceException;
 import com.korofin.backend.exception.expense.DuplicateCategoryException;
+import com.korofin.backend.exception.statement.EmptyStatementTextException;
+import com.korofin.backend.exception.statement.StatementExtractionException;
+import com.korofin.backend.exception.statement.StatementPasswordException;
+import com.korofin.backend.exception.statement.UnsupportedStatementFileException;
 import com.korofin.backend.exception.user.EmailAlreadyExistsException;
 import com.korofin.backend.exception.user.InvalidCredentialsException;
 import com.korofin.backend.exception.user.InvalidRefreshTokenException;
@@ -107,6 +111,37 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
         return buildErrorResponse(HttpStatus.BAD_REQUEST, ex.getMessage(), request.getRequestURI());
+    }
+
+    /**
+     * El archivo de extracto subido no tiene un formato soportado (o está vacío). Es un error del
+     * cliente, no una falla del proceso de extracción en sí — a diferencia de las tres excepciones
+     * de más abajo, que sí son {@code 422}.
+     */
+    @ExceptionHandler(UnsupportedStatementFileException.class)
+    public ResponseEntity<ErrorResponse> handleUnsupportedStatementFile(
+            UnsupportedStatementFileException ex,
+            HttpServletRequest request
+    ) {
+        return buildErrorResponse(HttpStatus.BAD_REQUEST, ex.getMessage(), request.getRequestURI());
+    }
+
+    /**
+     * Dominio {@code statement}: el archivo de extracto es válido y del formato correcto, pero su
+     * contenido no se pudo procesar (sin texto legible, PDF con contraseña incorrecta, o la IA no
+     * devolvió movimientos interpretables). Las tres comparten {@code 422 Unprocessable Entity}:
+     * el request en sí está bien formado, lo que falló es el contenido.
+     */
+    @ExceptionHandler({
+            EmptyStatementTextException.class,
+            StatementPasswordException.class,
+            StatementExtractionException.class
+    })
+    public ResponseEntity<ErrorResponse> handleStatementUnprocessable(
+            RuntimeException ex,
+            HttpServletRequest request
+    ) {
+        return buildErrorResponse(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage(), request.getRequestURI());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

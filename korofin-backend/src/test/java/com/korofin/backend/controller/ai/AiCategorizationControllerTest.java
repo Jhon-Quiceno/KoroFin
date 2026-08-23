@@ -2,6 +2,7 @@ package com.korofin.backend.controller.ai;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.korofin.backend.config.JwtProperties;
 import com.korofin.backend.config.SecurityConfig;
 import com.korofin.backend.dto.ai.CategorizeRequest;
 import com.korofin.backend.dto.ai.CategorizeResponse;
@@ -40,6 +41,9 @@ class AiCategorizationControllerTest {
 
     @MockitoBean
     private AiCategorizationService service;
+
+    @MockitoBean
+    private JwtProperties jwtProperties;
 
     @MockitoBean
     private JwtService jwtService;

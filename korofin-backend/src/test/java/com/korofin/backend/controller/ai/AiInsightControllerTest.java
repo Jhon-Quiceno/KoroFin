@@ -1,5 +1,6 @@
 package com.korofin.backend.controller.ai;
 
+import com.korofin.backend.config.JwtProperties;
 import com.korofin.backend.config.SecurityConfig;
 import com.korofin.backend.dto.ai.InsightResponse;
 import com.korofin.backend.exception.ai.AiProviderNotConfiguredException;
@@ -35,6 +36,9 @@ class AiInsightControllerTest {
 
     @MockitoBean
     private AiInsightService aiInsightService;
+
+    @MockitoBean
+    private JwtProperties jwtProperties;
 
     @MockitoBean
     private JwtService jwtService;
