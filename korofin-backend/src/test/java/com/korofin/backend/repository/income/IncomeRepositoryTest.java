@@ -6,6 +6,7 @@ import com.korofin.backend.entity.expense.CategoryType;
 import com.korofin.backend.entity.income.Income;
 import com.korofin.backend.entity.user.User;
 import com.korofin.backend.repository.common.MonthlyTotalProjection;
+import com.korofin.backend.repository.common.UserLastActivityProjection;
 import com.korofin.backend.repository.expense.CategoryRepository;
 import com.korofin.backend.repository.user.UserRepository;
 import org.junit.jupiter.api.Test;
@@ -92,6 +93,49 @@ class IncomeRepositoryTest implements PostgresContainerSupport {
         assertThat(result).hasSize(2);
         MonthlyTotalProjection january = result.stream().filter(row -> row.getPeriodMonth() == 1).findFirst().orElseThrow();
         assertThat(january.getTotal()).isEqualByComparingTo("1500");
+    }
+
+    @Test
+    void sumAmountByUserAndPeriodSumsOnlyWithinTheGivenRange() {
+        User owner = userRepository.saveAndFlush(newUser("sum-period-inc@korofin.dev"));
+        incomeRepository.saveAndFlush(newIncome(owner, null, BigDecimal.valueOf(1000), LocalDate.of(2026, 3, 1)));
+        incomeRepository.saveAndFlush(newIncome(owner, null, BigDecimal.valueOf(500), LocalDate.of(2026, 3, 15)));
+        incomeRepository.saveAndFlush(newIncome(owner, null, BigDecimal.valueOf(999), LocalDate.of(2026, 4, 1)));
+
+        BigDecimal total = incomeRepository.sumAmountByUserAndPeriod(
+                owner.getId(), LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 31)
+        );
+
+        assertThat(total).isEqualByComparingTo("1500");
+    }
+
+    @Test
+    void findDistinctUserIdsByDateBetweenReturnsOnlyUsersWithActivityInWindow() {
+        User active = userRepository.saveAndFlush(newUser("active-window-inc@korofin.dev"));
+        User outside = userRepository.saveAndFlush(newUser("outside-window-inc@korofin.dev"));
+        incomeRepository.saveAndFlush(newIncome(active, null, BigDecimal.TEN, LocalDate.of(2026, 5, 5)));
+        incomeRepository.saveAndFlush(newIncome(outside, null, BigDecimal.TEN, LocalDate.of(2026, 1, 1)));
+
+        List<Long> ids = incomeRepository.findDistinctUserIdsByDateBetween(
+                LocalDate.of(2026, 5, 1), LocalDate.of(2026, 5, 31)
+        );
+
+        assertThat(ids).contains(active.getId());
+        assertThat(ids).doesNotContain(outside.getId());
+    }
+
+    @Test
+    void findLatestIncomeDatePerUserReturnsTheMostRecentDatePerUser() {
+        User owner = userRepository.saveAndFlush(newUser("latest-inc@korofin.dev"));
+        incomeRepository.saveAndFlush(newIncome(owner, null, BigDecimal.TEN, LocalDate.of(2026, 1, 1)));
+        incomeRepository.saveAndFlush(newIncome(owner, null, BigDecimal.TEN, LocalDate.of(2026, 1, 20)));
+
+        List<UserLastActivityProjection> result = incomeRepository.findLatestIncomeDatePerUser();
+
+        UserLastActivityProjection row = result.stream()
+                .filter(projection -> projection.getUserId().equals(owner.getId()))
+                .findFirst().orElseThrow();
+        assertThat(row.getLastDate()).isEqualTo(LocalDate.of(2026, 1, 20));
     }
 
     private Income newIncome(User owner, Category category, BigDecimal amount, LocalDate date) {

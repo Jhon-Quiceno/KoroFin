@@ -5,9 +5,12 @@ import com.korofin.backend.entity.card.CardMovementType;
 import com.korofin.backend.entity.card.CreditCard;
 import com.korofin.backend.entity.card.Installment;
 import com.korofin.backend.entity.card.InstallmentStatus;
+import com.korofin.backend.entity.notification.NotificationType;
+import com.korofin.backend.entity.user.User;
 import com.korofin.backend.repository.card.CardMovementRepository;
 import com.korofin.backend.repository.card.CreditCardRepository;
 import com.korofin.backend.repository.card.InstallmentRepository;
+import com.korofin.backend.service.notification.channel.NotificationDispatcher;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -25,6 +28,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -46,11 +50,15 @@ class CycleCloseServiceTest {
     @Mock
     private CardMovementRepository cardMovementRepository;
 
+    @Mock
+    private NotificationDispatcher notificationDispatcher;
+
     private CycleCloseService cycleCloseService;
 
     private void buildService() {
         cycleCloseService = new CycleCloseService(
-                creditCardRepository, installmentRepository, cardMovementRepository, FIXED_CLOCK
+                creditCardRepository, installmentRepository, cardMovementRepository,
+                notificationDispatcher, FIXED_CLOCK
         );
     }
 
@@ -69,6 +77,7 @@ class CycleCloseServiceTest {
 
         verifyNoInteractions(installmentRepository);
         verifyNoInteractions(cardMovementRepository);
+        verifyNoInteractions(notificationDispatcher);
         verify(creditCardRepository, never()).incrementBalance(anyLong(), any());
         verify(creditCardRepository, never()).findById(anyLong());
     }
@@ -186,8 +195,31 @@ class CycleCloseServiceTest {
         cycleCloseService.closeCycle(9L);
 
         verifyNoInteractions(cardMovementRepository);
+        verifyNoInteractions(notificationDispatcher);
         verify(creditCardRepository, never()).incrementBalance(anyLong(), any());
         verify(installmentRepository, never()).saveAll(any());
+    }
+
+    /**
+     * Cuando el cierre efectivamente materializa interés, notifica al dueño de la tarjeta con un
+     * dedupeKey que incluye cardId y la fecha de cierre.
+     */
+    @Test
+    void closeCycleDispatchesCardCycleCloseNotificationWhenInterestIsMaterialized() {
+        buildService();
+        when(creditCardRepository.markCutoffClosed(9L, TODAY)).thenReturn(1);
+        when(installmentRepository.findByPlan_Movement_Card_IdAndStatusAndDueDateLessThanEqual(
+                9L, InstallmentStatus.PENDING, TODAY))
+                .thenReturn(List.of(installment(1L, "5000.00")));
+        when(creditCardRepository.findById(9L)).thenReturn(Optional.of(card(9L, "100000")));
+        when(cardMovementRepository.save(any(CardMovement.class))).thenAnswer(i -> i.getArgument(0));
+
+        cycleCloseService.closeCycle(9L);
+
+        verify(notificationDispatcher).dispatch(
+                eq(1L), eq(NotificationType.CARD_CYCLE_CLOSE), any(), any(),
+                eq("card-cycle-close:9:" + TODAY)
+        );
     }
 
     private Installment installment(Long id, String interest) {
@@ -202,8 +234,12 @@ class CycleCloseServiceTest {
     }
 
     private CreditCard card(Long id, String balance) {
+        User owner = new User();
+        owner.setId(1L);
+
         CreditCard card = new CreditCard();
         card.setId(id);
+        card.setUser(owner);
         card.setName("Visa Oro");
         card.setCreditLimit(new BigDecimal("5000000"));
         card.setCurrentBalance(new BigDecimal(balance));

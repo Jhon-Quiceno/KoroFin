@@ -4,15 +4,13 @@ package com.korofin.backend.event.expense;
  * Publicado por {@code ExpenseService#createExpense} después de persistir un {@code Expense}
  * nuevo.
  *
- * <p>Todavía no tiene listeners en esta fase — el dominio {@code notification}, que agregaría un
- * listener de alerta de sobregasto (equivalente a {@code OverspendAlertListener} en FinSmart, ver
- * {@code docs/backend-plan.md} sección 2.5), llega en una fase posterior. Publicar el evento desde
- * ya sin listeners es válido: {@code ExpenseService} queda desacoplado de esa lógica de
- * notificaciones sin tener que modificarse cuando esa fase lo agregue.
+ * <p>Consumido por {@code OverspendAlertListener} (paquete {@code service/scheduling}), que
+ * dispara una notificación de sobregasto sin acoplar {@code ExpenseService} a esa lógica — por eso
+ * este evento existe en vez de una llamada directa.
  *
- * <p>Carga deliberadamente solo ids, no el {@code Expense}/{@code ExpenseResponse} completo: un
- * futuro listener debe recalcular el agregado actual desde la base de datos en vez de confiar en
- * una instantánea tomada al momento de publicar, ya que pueden haberse creado otros gastos
+ * <p>Carga deliberadamente solo ids, no el {@code Expense}/{@code ExpenseResponse} completo: el
+ * listener recalcula el agregado actual desde la base de datos en vez de confiar en una
+ * instantánea tomada al momento de publicar, ya que pueden haberse creado otros gastos
  * concurrentemente.
  *
  * @param userId    dueño del gasto creado

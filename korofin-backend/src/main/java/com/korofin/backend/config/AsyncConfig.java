@@ -8,11 +8,11 @@ import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import java.util.concurrent.Executor;
 
 /**
- * Habilita la ejecución de métodos {@code @Async}. El primer consumidor real de
- * {@link #MAIL_EXECUTOR} llega con el dominio {@code notification} (fase posterior —
- * {@code EmailNotificationSender}, para que un SMTP lento nunca bloquee el hilo del request);
- * {@link #GENERAL_EXECUTOR} queda como pool genérico de propósito general para cualquier otra
- * tarea async que no justifique su propio pool dedicado.
+ * Habilita la ejecución de métodos {@code @Async}. {@link #MAIL_EXECUTOR} lo consume
+ * {@code EmailNotificationSender} (dominio {@code notification}), para que un SMTP lento nunca
+ * bloquee el hilo del request; {@link #GENERAL_EXECUTOR} es el pool genérico de propósito general
+ * — lo consume {@code ExpoPushAdapter} (KoroFin no tiene un executor dedicado a push) y cualquier
+ * otra tarea async que no justifique su propio pool dedicado.
  */
 @Configuration
 @EnableAsync

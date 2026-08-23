@@ -3,6 +3,8 @@ package com.korofin.backend.repository.user;
 import com.korofin.backend.PostgresContainerSupport;
 import com.korofin.backend.entity.user.User;
 import org.junit.jupiter.api.Test;
+import java.time.Instant;
+import java.util.List;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.jpa.test.autoconfigure.TestEntityManager;
@@ -113,6 +115,20 @@ class UserRepositoryTest implements PostgresContainerSupport {
 
         assertThat(rows).isEqualTo(1);
         assertThat(userRepository.findById(saved.getId()).orElseThrow().getAiChatUsed()).isEqualTo(0);
+    }
+
+    @Test
+    void findAllIdsWithLastLoginNotNullExcludesUsersWhoNeverLoggedIn() {
+        User loggedIn = newUser("logged-in@korofin.dev");
+        loggedIn.setLastLoginAt(Instant.parse("2026-01-01T00:00:00Z"));
+        User neverLoggedIn = newUser("never-logged-in@korofin.dev");
+        User savedLoggedIn = userRepository.saveAndFlush(loggedIn);
+        userRepository.saveAndFlush(neverLoggedIn);
+
+        List<Long> ids = userRepository.findAllIdsWithLastLoginNotNull();
+
+        assertThat(ids).contains(savedLoggedIn.getId());
+        assertThat(ids).hasSize(1);
     }
 
     private User newUser(String email) {

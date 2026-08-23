@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface UserRepository extends JpaRepository<User, Long> {
@@ -56,4 +57,12 @@ public interface UserRepository extends JpaRepository<User, Long> {
                AND u.aiChatPeriod = :period
             """)
     int releaseAiChatQuota(@Param("userId") Long userId, @Param("period") String period);
+
+    /**
+     * Ids de todo usuario que se logueó al menos una vez, pensado para {@code InactivityReminderJob}
+     * (dominio {@code scheduling}) — un usuario que nunca se logueó no tiene de qué estar
+     * "inactivo".
+     */
+    @Query("SELECT u.id FROM User u WHERE u.lastLoginAt IS NOT NULL")
+    List<Long> findAllIdsWithLastLoginNotNull();
 }

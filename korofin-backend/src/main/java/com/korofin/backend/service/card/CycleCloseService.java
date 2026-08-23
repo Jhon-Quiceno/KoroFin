@@ -5,19 +5,25 @@ import com.korofin.backend.entity.card.CardMovementType;
 import com.korofin.backend.entity.card.CreditCard;
 import com.korofin.backend.entity.card.Installment;
 import com.korofin.backend.entity.card.InstallmentStatus;
+import com.korofin.backend.entity.notification.NotificationType;
 import com.korofin.backend.exception.card.CreditCardNotFoundException;
 import com.korofin.backend.repository.card.CardMovementRepository;
 import com.korofin.backend.repository.card.CreditCardRepository;
 import com.korofin.backend.repository.card.InstallmentRepository;
+import com.korofin.backend.service.notification.channel.NotificationDispatcher;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.text.DecimalFormat;
+import java.text.DecimalFormatSymbols;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Materializa, por tarjeta, el interés de las cuotas {@link InstallmentStatus#PENDING} que ya
@@ -38,6 +44,14 @@ import java.util.List;
  *       próxima corrida sigue viendo esas cuotas como {@code PENDING} con {@code dueDate} en el
  *       pasado y las factura igual, sin perder el ciclo.</li>
  * </ul>
+ *
+ * <p>Cuando el cierre efectivamente materializa interés (hay cuotas vencidas), notifica al dueño
+ * de la tarjeta vía {@link NotificationDispatcher} con un {@code dedupeKey} que incluye
+ * {@code cardId} y la fecha de cierre — así una segunda corrida el mismo día (que ya corta antes
+ * del guard) nunca llega a notificar dos veces, y el propio guard de dedupe de
+ * {@code NotificationService#createNotification} es una segunda red de seguridad si alguna vez se
+ * relaja esa condición. Si el guard pasa pero no hay cuotas vencidas, no se notifica — no hay
+ * nada nuevo que informarle al usuario.
  */
 @Service
 public class CycleCloseService {
@@ -47,17 +61,20 @@ public class CycleCloseService {
     private final CreditCardRepository creditCardRepository;
     private final InstallmentRepository installmentRepository;
     private final CardMovementRepository cardMovementRepository;
+    private final NotificationDispatcher notificationDispatcher;
     private final Clock clock;
 
     public CycleCloseService(
             CreditCardRepository creditCardRepository,
             InstallmentRepository installmentRepository,
             CardMovementRepository cardMovementRepository,
+            NotificationDispatcher notificationDispatcher,
             Clock clock
     ) {
         this.creditCardRepository = creditCardRepository;
         this.installmentRepository = installmentRepository;
         this.cardMovementRepository = cardMovementRepository;
+        this.notificationDispatcher = notificationDispatcher;
         this.clock = clock;
     }
 
@@ -75,11 +92,13 @@ public class CycleCloseService {
      *       devengó y siempre se aplica, aunque deje la tarjeta sobregirada).</li>
      *   <li>Marca esas cuotas como {@link InstallmentStatus#BILLED} y les asigna el movimiento de
      *       interés recién creado.</li>
+     *   <li>Notifica al dueño de la tarjeta el cierre y el saldo resultante, vía
+     *       {@link NotificationDispatcher}.</li>
      * </ol>
      *
      * <p>Si el guard pasa pero no hay cuotas vencidas (tarjeta sin compras a cuotas, o ninguna
-     * vencida todavía), no se crea movimiento de interés — solo queda registrado que el ciclo se
-     * revisó hoy.
+     * vencida todavía), no se crea movimiento de interés ni se notifica — solo queda registrado
+     * que el ciclo se revisó hoy.
      */
     @Transactional
     public void closeCycle(Long cardId) {
@@ -123,13 +142,40 @@ public class CycleCloseService {
         });
         installmentRepository.saveAll(dueInstallments);
 
-        // TODO(fase notification): notificar al dueño de la tarjeta el cierre de ciclo y el saldo
-        // resultante, vía NotificationDispatcher con un dedupeKey que incluya cardId + la fecha
-        // de cierre. Esa clase todavía no existe en KoroFin — la agrega la fase del dominio
-        // notification, que debe completar este punto. El cierre de ciclo en sí ya es correcto y
-        // completo sin la notificación: el interés queda materializado y las cuotas facturadas.
+        // Se relee la tarjeta: incrementBalance corrió con clearAutomatically=true, así que el
+        // "card" de más arriba quedó desvinculado del contexto de persistencia y su
+        // currentBalance en memoria está desactualizado respecto al saldo real post-interés.
+        CreditCard cardAfterInterest = findCardById(cardId);
+        dispatchCycleCloseNotification(cardAfterInterest, today);
+
         log.info("cycle_close_completed cardId={} closeDate={} interestTotal={} billedInstallments={}",
                 cardId, today, interestTotal, dueInstallments.size());
+    }
+
+    private void dispatchCycleCloseNotification(CreditCard card, LocalDate closeDate) {
+        String title = "Cierre de ciclo: " + card.getName();
+        String message = "Tu tarjeta " + card.getName() + " cerró su ciclo, saldo actual $"
+                + formatAmount(card.getCurrentBalance()) + ".";
+        String dedupeKey = "card-cycle-close:" + card.getId() + ":" + closeDate;
+
+        notificationDispatcher.dispatch(
+                card.getUser().getId(), NotificationType.CARD_CYCLE_CLOSE, title, message, dedupeKey
+        );
+    }
+
+    /**
+     * Formatea {@code amount} como cifra entera con separador de miles "." (ej. {@code "24.500"}).
+     * Duplicado deliberadamente en vez de reusar {@code NotificationMessageFormatter}: ese
+     * formateador vive en {@code service/scheduling} (package-private a propósito) y este
+     * servicio pertenece a {@code service/card}, un paquete distinto.
+     */
+    private static String formatAmount(BigDecimal amount) {
+        BigDecimal safeAmount = amount != null ? amount : BigDecimal.ZERO;
+        BigDecimal rounded = safeAmount.setScale(0, RoundingMode.HALF_UP);
+        DecimalFormatSymbols symbols = new DecimalFormatSymbols(Locale.ROOT);
+        symbols.setGroupingSeparator('.');
+        DecimalFormat format = new DecimalFormat("#,###", symbols);
+        return format.format(rounded);
     }
 
     private CreditCard findCardById(Long cardId) {

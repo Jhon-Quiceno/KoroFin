@@ -7,6 +7,7 @@ import com.korofin.backend.entity.expense.Expense;
 import com.korofin.backend.entity.expense.PaymentMethodType;
 import com.korofin.backend.entity.user.User;
 import com.korofin.backend.repository.common.MonthlyTotalProjection;
+import com.korofin.backend.repository.common.UserLastActivityProjection;
 import com.korofin.backend.repository.user.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -93,6 +94,49 @@ class ExpenseRepositoryTest implements PostgresContainerSupport {
         assertThat(result).hasSize(2);
         MonthlyTotalProjection january = result.stream().filter(row -> row.getPeriodMonth() == 1).findFirst().orElseThrow();
         assertThat(january.getTotal()).isEqualByComparingTo("120");
+    }
+
+    @Test
+    void sumAmountByUserAndPeriodSumsOnlyWithinTheGivenRange() {
+        User owner = userRepository.saveAndFlush(newUser("sum-period-exp@korofin.dev"));
+        expenseRepository.saveAndFlush(newExpense(owner, null, BigDecimal.valueOf(100), LocalDate.of(2026, 3, 1)));
+        expenseRepository.saveAndFlush(newExpense(owner, null, BigDecimal.valueOf(200), LocalDate.of(2026, 3, 15)));
+        expenseRepository.saveAndFlush(newExpense(owner, null, BigDecimal.valueOf(999), LocalDate.of(2026, 4, 1)));
+
+        BigDecimal total = expenseRepository.sumAmountByUserAndPeriod(
+                owner.getId(), LocalDate.of(2026, 3, 1), LocalDate.of(2026, 3, 31)
+        );
+
+        assertThat(total).isEqualByComparingTo("300");
+    }
+
+    @Test
+    void findDistinctUserIdsByDateBetweenReturnsOnlyUsersWithActivityInWindow() {
+        User active = userRepository.saveAndFlush(newUser("active-window@korofin.dev"));
+        User outside = userRepository.saveAndFlush(newUser("outside-window@korofin.dev"));
+        expenseRepository.saveAndFlush(newExpense(active, null, BigDecimal.TEN, LocalDate.of(2026, 5, 5)));
+        expenseRepository.saveAndFlush(newExpense(outside, null, BigDecimal.TEN, LocalDate.of(2026, 1, 1)));
+
+        List<Long> ids = expenseRepository.findDistinctUserIdsByDateBetween(
+                LocalDate.of(2026, 5, 1), LocalDate.of(2026, 5, 31)
+        );
+
+        assertThat(ids).contains(active.getId());
+        assertThat(ids).doesNotContain(outside.getId());
+    }
+
+    @Test
+    void findLatestExpenseDatePerUserReturnsTheMostRecentDatePerUser() {
+        User owner = userRepository.saveAndFlush(newUser("latest-exp@korofin.dev"));
+        expenseRepository.saveAndFlush(newExpense(owner, null, BigDecimal.TEN, LocalDate.of(2026, 1, 1)));
+        expenseRepository.saveAndFlush(newExpense(owner, null, BigDecimal.TEN, LocalDate.of(2026, 1, 20)));
+
+        List<UserLastActivityProjection> result = expenseRepository.findLatestExpenseDatePerUser();
+
+        UserLastActivityProjection row = result.stream()
+                .filter(projection -> projection.getUserId().equals(owner.getId()))
+                .findFirst().orElseThrow();
+        assertThat(row.getLastDate()).isEqualTo(LocalDate.of(2026, 1, 20));
     }
 
     private Expense newExpense(User owner, Category category, BigDecimal amount, LocalDate date) {

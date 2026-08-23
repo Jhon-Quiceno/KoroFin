@@ -14,6 +14,8 @@ import com.korofin.backend.exception.card.CardPurchaseOverLimitException;
 import com.korofin.backend.exception.card.InstallmentAmountTooLowException;
 import com.korofin.backend.exception.debt.DebtPaymentExceedsBalanceException;
 import com.korofin.backend.exception.expense.DuplicateCategoryException;
+import com.korofin.backend.exception.recurringpayment.RecurringPaymentAlreadyPaidException;
+import com.korofin.backend.exception.recurringpayment.RecurringPaymentNotDueYetException;
 import com.korofin.backend.exception.statement.EmptyStatementTextException;
 import com.korofin.backend.exception.statement.StatementExtractionException;
 import com.korofin.backend.exception.statement.StatementPasswordException;
@@ -142,6 +144,23 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
         return buildErrorResponse(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage(), request.getRequestURI());
+    }
+
+    /**
+     * Dominio {@code recurringpayment}: {@code PATCH /api/recurring/{id}/pay} perdió la carrera de
+     * avance de fecha contra otra ejecución concurrente, o se llamó antes de que
+     * {@code nextPaymentDate} llegara. Ambas son {@code 409}: hay un conflicto de estado que el
+     * cliente puede entender (ya pagado / todavía no vence), no un dato inválido.
+     */
+    @ExceptionHandler({
+            RecurringPaymentAlreadyPaidException.class,
+            RecurringPaymentNotDueYetException.class
+    })
+    public ResponseEntity<ErrorResponse> handleRecurringPaymentConflict(
+            RuntimeException ex,
+            HttpServletRequest request
+    ) {
+        return buildErrorResponse(HttpStatus.CONFLICT, ex.getMessage(), request.getRequestURI());
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

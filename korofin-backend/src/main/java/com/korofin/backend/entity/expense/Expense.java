@@ -2,6 +2,7 @@ package com.korofin.backend.entity.expense;
 
 import com.korofin.backend.entity.card.CardMovement;
 import com.korofin.backend.entity.debt.DebtPayment;
+import com.korofin.backend.entity.recurringpayment.RecurringPayment;
 import com.korofin.backend.entity.user.User;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -35,21 +36,15 @@ import java.time.LocalDate;
  * datos usa {@code ON DELETE SET NULL}, ver {@code V2__create_categories_expenses_incomes.sql}).
  * {@link #paymentMethod} sí es obligatorio.
  *
- * <p>{@link #debtPayment} y {@link #cardMovement} vinculan un gasto generado automáticamente con
- * su origen (un abono a una deuda, una compra con tarjeta). Ambas FKs son opcionales y usan
- * {@code ON DELETE SET NULL} (ver {@code V3__add_debt_and_card_domain.sql} y
+ * <p>{@link #debtPayment}, {@link #cardMovement} y {@link #recurringPayment} vinculan un gasto
+ * generado automáticamente con su origen (un abono a una deuda, una compra con tarjeta, la
+ * ejecución de un pago recurrente). Las tres FKs son opcionales y usan {@code ON DELETE SET NULL}
+ * (ver {@code V3__add_debt_and_card_domain.sql},
+ * {@code V5__create_notification_and_recurring_payment_domains.sql} y
  * {@code docs/backend-plan.md} sección 2.5): borrar el origen no borra el historial del gasto, el
- * gasto solo pierde el vínculo. Ninguna de las dos se asigna desde {@code ExpenseService} — las
- * asignan {@code DebtPaymentService} y {@code CardMovementService} al crear el gasto derivado.
- *
- * <p><b>Nota para fases futuras:</b> el {@code Expense} original de FinSmart tiene una tercera FK
- * opcional, hacia {@code recurringPayment} (ver {@code docs/backend-plan.md} sección 2.5),
- * agregada en su momento con una migración posterior ({@code V5}) porque la tabla
- * {@code expenses} ya existía. El dominio {@code recurringpayment} todavía no existe en KoroFin
- * (llega en una fase posterior), así que esta entidad deliberadamente **no** incluye ese campo
- * todavía. Cuando se implemente ese dominio, su fase debe agregar su propia migración
- * {@code ALTER TABLE expenses ADD COLUMN ...} (FK {@code ON DELETE SET NULL}) y el campo
- * {@code @ManyToOne} correspondiente acá.
+ * gasto solo pierde el vínculo. Ninguna de las tres se asigna desde {@code ExpenseService} — las
+ * asignan {@code DebtPaymentService}, {@code CardMovementService} y
+ * {@code RecurringPaymentService} al crear el gasto derivado.
  */
 @Entity
 @Table(name = "expenses")
@@ -98,6 +93,11 @@ public class Expense {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "card_movement_id")
     private CardMovement cardMovement;
+
+    /** Pago recurrente que generó este gasto, o {@code null} si el gasto se registró a mano. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "recurring_payment_id")
+    private RecurringPayment recurringPayment;
 
     @CreatedDate
     @Column(name = "created_at", updatable = false)

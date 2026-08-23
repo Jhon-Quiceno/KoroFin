@@ -2,11 +2,13 @@ package com.korofin.backend.repository.income;
 
 import com.korofin.backend.entity.income.Income;
 import com.korofin.backend.repository.common.MonthlyTotalProjection;
+import com.korofin.backend.repository.common.UserLastActivityProjection;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -48,4 +50,26 @@ public interface IncomeRepository extends JpaRepository<Income, Long>, JpaSpecif
     List<MonthlyTotalProjection> sumAmountByUserGroupedByMonth(
             @Param("userId") Long userId, @Param("start") LocalDate start, @Param("end") LocalDate end
     );
+
+    @Query("SELECT COALESCE(SUM(i.amount), 0) FROM Income i "
+            + "WHERE i.user.id = :userId AND i.date >= :start AND i.date <= :end")
+    BigDecimal sumAmountByUserAndPeriod(
+            @Param("userId") Long userId, @Param("start") LocalDate start, @Param("end") LocalDate end
+    );
+
+    /**
+     * Ids de usuario distintos con al menos un ingreso en {@code [start, end]}, respalda a
+     * {@code WeeklySummaryJob} (dominio {@code scheduling}). Ver
+     * {@code ExpenseRepository#findDistinctUserIdsByDateBetween} para su contraparte.
+     */
+    @Query("SELECT DISTINCT i.user.id FROM Income i WHERE i.date >= :start AND i.date <= :end")
+    List<Long> findDistinctUserIdsByDateBetween(@Param("start") LocalDate start, @Param("end") LocalDate end);
+
+    /**
+     * Fecha del ingreso más reciente por usuario, entre todos los usuarios, en una sola consulta
+     * agrupada. Respalda a {@code InactivityReminderJob} (dominio {@code scheduling}); ver
+     * {@code ExpenseRepository#findLatestExpenseDatePerUser()} para su contraparte.
+     */
+    @Query("SELECT i.user.id AS userId, MAX(i.date) AS lastDate FROM Income i GROUP BY i.user.id")
+    List<UserLastActivityProjection> findLatestIncomeDatePerUser();
 }
