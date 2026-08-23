@@ -8,12 +8,14 @@ import com.korofin.backend.dto.user.RegisterRequest;
 import com.korofin.backend.dto.user.UserPreferencesResponse;
 import com.korofin.backend.dto.user.UserPreferencesUpdateRequest;
 import com.korofin.backend.dto.user.UserResponse;
+import com.korofin.backend.entity.ai.AiMessageKind;
 import com.korofin.backend.entity.user.User;
 import com.korofin.backend.exception.ResourceNotFoundException;
 import com.korofin.backend.exception.user.EmailAlreadyExistsException;
 import com.korofin.backend.exception.user.InvalidCredentialsException;
 import com.korofin.backend.exception.user.InvalidRefreshTokenException;
 import com.korofin.backend.mapper.user.UserMapper;
+import com.korofin.backend.repository.ai.AiMessageRepository;
 import com.korofin.backend.repository.user.UserRepository;
 import com.korofin.backend.security.JwtService;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -36,19 +38,22 @@ public class UserService {
     private final JwtService jwtService;
     private final RefreshTokenService refreshTokenService;
     private final UserMapper userMapper;
+    private final AiMessageRepository aiMessageRepository;
 
     public UserService(
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
             JwtService jwtService,
             RefreshTokenService refreshTokenService,
-            UserMapper userMapper
+            UserMapper userMapper,
+            AiMessageRepository aiMessageRepository
     ) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
         this.refreshTokenService = refreshTokenService;
         this.userMapper = userMapper;
+        this.aiMessageRepository = aiMessageRepository;
     }
 
     @Transactional
@@ -72,13 +77,10 @@ public class UserService {
     }
 
     /**
-     * Autentica al usuario.
-     *
-     * <p>TODO(ai): cuando exista el dominio {@code ai} (fase posterior), este método debe borrar
-     * el historial de chat de IA de tipo {@code CHAT} del usuario (no las filas de tipo
-     * {@code INSIGHT}, que sobreviven al login) para que cada sesión nueva arranque el asistente
-     * con la conversación en blanco — comportamiento heredado de FinSmart
-     * ({@code UserService#login}), documentado acá para que la fase de IA no lo pase por alto.
+     * Autentica al usuario y, si tuvo éxito, borra su historial de chat de IA
+     * ({@link AiMessageKind#CHAT} exclusivamente — las filas {@link AiMessageKind#INSIGHT}
+     * sobreviven al login) para que cada sesión nueva arranque el asistente con la conversación en
+     * blanco. Comportamiento heredado de FinSmart ({@code UserService#login}).
      */
     @Transactional
     public AuthSession login(LoginRequest request) {
@@ -98,6 +100,7 @@ public class UserService {
         }
 
         user.setLastLoginAt(Instant.now());
+        aiMessageRepository.deleteByUserIdAndKind(user.getId(), AiMessageKind.CHAT);
         boolean rememberMe = Boolean.TRUE.equals(request.rememberMe());
         return buildAuthSession(user, rememberMe);
     }

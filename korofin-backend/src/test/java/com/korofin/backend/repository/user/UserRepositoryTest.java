@@ -63,6 +63,58 @@ class UserRepositoryTest implements PostgresContainerSupport {
         assertThat(reloaded.getCreatedAt()).isNotNull();
     }
 
+    @Test
+    void reserveAiChatQuotaShouldResetCounterToOneOnANewPeriod() {
+        User saved = userRepository.saveAndFlush(newUser("quota-new-period@korofin.dev"));
+
+        int rows = userRepository.reserveAiChatQuota(saved.getId(), "2026-07", 5);
+        entityManager.clear();
+
+        assertThat(rows).isEqualTo(1);
+        User reloaded = userRepository.findById(saved.getId()).orElseThrow();
+        assertThat(reloaded.getAiChatUsed()).isEqualTo(1);
+        assertThat(reloaded.getAiChatPeriod()).isEqualTo("2026-07");
+    }
+
+    @Test
+    void reserveAiChatQuotaShouldIncrementWithinTheSamePeriodUntilTheLimit() {
+        User saved = userRepository.saveAndFlush(newUser("quota-increment@korofin.dev"));
+        userRepository.reserveAiChatQuota(saved.getId(), "2026-07", 2);
+        entityManager.clear();
+
+        int rows = userRepository.reserveAiChatQuota(saved.getId(), "2026-07", 2);
+        entityManager.clear();
+
+        assertThat(rows).isEqualTo(1);
+        assertThat(userRepository.findById(saved.getId()).orElseThrow().getAiChatUsed()).isEqualTo(2);
+    }
+
+    @Test
+    void reserveAiChatQuotaShouldRejectOnceTheLimitIsReached() {
+        User saved = userRepository.saveAndFlush(newUser("quota-limit@korofin.dev"));
+        userRepository.reserveAiChatQuota(saved.getId(), "2026-07", 1);
+        entityManager.clear();
+
+        int rows = userRepository.reserveAiChatQuota(saved.getId(), "2026-07", 1);
+        entityManager.clear();
+
+        assertThat(rows).isEqualTo(0);
+        assertThat(userRepository.findById(saved.getId()).orElseThrow().getAiChatUsed()).isEqualTo(1);
+    }
+
+    @Test
+    void releaseAiChatQuotaShouldDecrementByOneFlooredAtZero() {
+        User saved = userRepository.saveAndFlush(newUser("quota-release@korofin.dev"));
+        userRepository.reserveAiChatQuota(saved.getId(), "2026-07", 5);
+        entityManager.clear();
+
+        int rows = userRepository.releaseAiChatQuota(saved.getId(), "2026-07");
+        entityManager.clear();
+
+        assertThat(rows).isEqualTo(1);
+        assertThat(userRepository.findById(saved.getId()).orElseThrow().getAiChatUsed()).isEqualTo(0);
+    }
+
     private User newUser(String email) {
         User user = new User();
         user.setName("Test");

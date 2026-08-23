@@ -1,5 +1,14 @@
 package com.korofin.backend.exception;
 
+import com.korofin.backend.exception.ai.AiMessageQuotaExceededException;
+import com.korofin.backend.exception.ai.AiProviderAuthException;
+import com.korofin.backend.exception.ai.AiProviderException;
+import com.korofin.backend.exception.ai.AiProviderModelNotFoundException;
+import com.korofin.backend.exception.ai.AiProviderNotConfiguredException;
+import com.korofin.backend.exception.ai.AiProviderRateLimitException;
+import com.korofin.backend.exception.ai.AiProviderTimeoutException;
+import com.korofin.backend.exception.ai.AiProviderUnavailableException;
+import com.korofin.backend.exception.ai.AiProvidersExhaustedException;
 import com.korofin.backend.exception.card.CardPaymentExceedsBalanceException;
 import com.korofin.backend.exception.card.CardPurchaseOverLimitException;
 import com.korofin.backend.exception.card.InstallmentAmountTooLowException;
@@ -8,6 +17,7 @@ import com.korofin.backend.exception.expense.DuplicateCategoryException;
 import com.korofin.backend.exception.user.EmailAlreadyExistsException;
 import com.korofin.backend.exception.user.InvalidCredentialsException;
 import com.korofin.backend.exception.user.InvalidRefreshTokenException;
+import com.korofin.backend.service.ai.provider.AiChatOrchestrator;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.ConstraintViolationException;
@@ -31,9 +41,9 @@ import java.time.Instant;
  * Manejador global de excepciones. Traduce las excepciones de dominio y de framework a
  * {@link ErrorResponse} con el código HTTP correspondiente. Arrancó cubriendo solo lo que
  * necesitaba el dominio {@code user} (fase 1) más los casos genéricos transversales; los dominios
- * siguientes ({@code expense}/{@code income} en fase 2, {@code debt}/{@code card} en fase 3, y
- * los que vengan después) agregan sus propios {@code @ExceptionHandler} acá a medida que se
- * implementan.
+ * siguientes ({@code expense}/{@code income} en fase 2, {@code debt}/{@code card} en fase 3,
+ * {@code ai} en fase 4, y los que vengan después) agregan sus propios {@code @ExceptionHandler}
+ * acá a medida que se implementan.
  *
  * <p>Las excepciones de "no encontrado" propias de un dominio ({@code DebtNotFoundException},
  * {@code CreditCardNotFoundException}, {@code InstallmentPlanNotFoundException}) extienden
@@ -167,6 +177,75 @@ public class GlobalExceptionHandler {
             HttpServletRequest request
     ) {
         return buildErrorResponse(HttpStatus.FORBIDDEN, ex.getMessage(), request.getRequestURI());
+    }
+
+    /**
+     * Ambas excepciones son fallas terminales de {@link AiChatOrchestrator#complete}: o no hay
+     * ningún proveedor configurado, o todos los configurados fallaron. Ninguna lleva nunca detalle
+     * específico de proveedor, así que ambas se mapean a la misma respuesta 503 con exactamente el
+     * mismo mensaje genérico, sin importar el mensaje propio de la excepción — esto hace imposible
+     * filtrar por acá qué proveedor falló o por qué.
+     */
+    @ExceptionHandler({
+            AiProviderNotConfiguredException.class,
+            AiProvidersExhaustedException.class
+    })
+    public ResponseEntity<ErrorResponse> handleAiUnavailable(
+            RuntimeException ex,
+            HttpServletRequest request
+    ) {
+        return buildErrorResponse(HttpStatus.SERVICE_UNAVAILABLE, AiChatOrchestrator.GENERIC_MESSAGE, request.getRequestURI());
+    }
+
+    @ExceptionHandler({
+            AiProviderAuthException.class,
+            AiProviderModelNotFoundException.class
+    })
+    public ResponseEntity<ErrorResponse> handleAiProviderConfigurationError(
+            AiProviderException ex,
+            HttpServletRequest request
+    ) {
+        return buildErrorResponse(HttpStatus.UNPROCESSABLE_ENTITY, ex.getMessage(), request.getRequestURI());
+    }
+
+    @ExceptionHandler(AiProviderRateLimitException.class)
+    public ResponseEntity<ErrorResponse> handleAiProviderRateLimit(
+            AiProviderRateLimitException ex,
+            HttpServletRequest request
+    ) {
+        return buildErrorResponse(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage(), request.getRequestURI());
+    }
+
+    @ExceptionHandler(AiMessageQuotaExceededException.class)
+    public ResponseEntity<ErrorResponse> handleAiMessageQuotaExceeded(
+            AiMessageQuotaExceededException ex,
+            HttpServletRequest request
+    ) {
+        return buildErrorResponse(HttpStatus.TOO_MANY_REQUESTS, ex.getMessage(), request.getRequestURI());
+    }
+
+    @ExceptionHandler({
+            AiProviderTimeoutException.class,
+            AiProviderUnavailableException.class
+    })
+    public ResponseEntity<ErrorResponse> handleAiProviderUnavailable(
+            AiProviderException ex,
+            HttpServletRequest request
+    ) {
+        return buildErrorResponse(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage(), request.getRequestURI());
+    }
+
+    /**
+     * Respaldo para cualquier {@link AiProviderException} no cubierta por un handler más
+     * específico arriba (defensivo — cada subtipo concreto que lanza hoy {@code AiChatClient} ya
+     * está manejado explícitamente).
+     */
+    @ExceptionHandler(AiProviderException.class)
+    public ResponseEntity<ErrorResponse> handleAiProviderGenericError(
+            AiProviderException ex,
+            HttpServletRequest request
+    ) {
+        return buildErrorResponse(HttpStatus.BAD_GATEWAY, ex.getMessage(), request.getRequestURI());
     }
 
     /**

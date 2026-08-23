@@ -6,6 +6,7 @@ import com.korofin.backend.dto.user.ProfileUpdateRequest;
 import com.korofin.backend.dto.user.RegisterRequest;
 import com.korofin.backend.dto.user.UserPreferencesUpdateRequest;
 import com.korofin.backend.dto.user.UserResponse;
+import com.korofin.backend.entity.ai.AiMessageKind;
 import com.korofin.backend.entity.user.AppLanguage;
 import com.korofin.backend.entity.user.ThemePreference;
 import com.korofin.backend.entity.user.User;
@@ -14,6 +15,7 @@ import com.korofin.backend.exception.user.EmailAlreadyExistsException;
 import com.korofin.backend.exception.user.InvalidCredentialsException;
 import com.korofin.backend.exception.user.InvalidRefreshTokenException;
 import com.korofin.backend.mapper.user.UserMapper;
+import com.korofin.backend.repository.ai.AiMessageRepository;
 import com.korofin.backend.repository.user.UserRepository;
 import com.korofin.backend.security.JwtService;
 import org.junit.jupiter.api.Assertions;
@@ -49,6 +51,9 @@ class UserServiceTest {
 
     @Mock
     private UserMapper userMapper;
+
+    @Mock
+    private AiMessageRepository aiMessageRepository;
 
     @InjectMocks
     private UserService userService;
@@ -110,6 +115,26 @@ class UserServiceTest {
         Assertions.assertEquals("refresh-token", session.refreshToken());
         Assertions.assertTrue(session.rememberMe());
         Assertions.assertNotNull(user.getLastLoginAt());
+    }
+
+    @Test
+    void loginShouldDeleteChatHistoryButNotInsightHistory() {
+        User user = new User();
+        user.setId(7L);
+        user.setName("John");
+        user.setEmail("john@mail.com");
+        user.setPasswordHash("hashed");
+        user.setActive(true);
+        when(userRepository.findByEmailIgnoreCase("john@mail.com")).thenReturn(Optional.of(user));
+        when(passwordEncoder.matches("secret123", "hashed")).thenReturn(true);
+        when(jwtService.generateAccessToken(any(User.class))).thenReturn("access-token");
+        when(jwtService.getAccessTokenExpirationSeconds()).thenReturn(900L);
+        when(refreshTokenService.createForUser(any(User.class), eq(true))).thenReturn("refresh-token");
+        when(userMapper.toResponse(any(User.class))).thenReturn(new UserResponse(7L, "John", "john@mail.com", ThemePreference.SYSTEM, "COP", AppLanguage.ES));
+
+        userService.login(new LoginRequest("john@mail.com", "secret123", true));
+
+        verify(aiMessageRepository).deleteByUserIdAndKind(7L, AiMessageKind.CHAT);
     }
 
     @Test
