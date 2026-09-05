@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:dio/dio.dart';
 
+import '../../core/config/app_config.dart';
 import '../../core/network/api_client.dart';
 import '../../models/statement.dart';
 
@@ -22,8 +23,11 @@ class StatementRepository {
       'file': MultipartFile.fromBytes(bytes, filename: filename),
       if (password != null && password.isNotEmpty) 'password': password,
     });
-    final Response<dynamic> response =
-        await _client.postForm('/api/statement-imports/preview', form);
+    final Response<dynamic> response = await _client.postForm(
+      '/api/statement-imports/preview',
+      form,
+      timeout: AppConfig.aiRequestTimeout,
+    );
     return StatementPreview.fromJson(response.data as Map<String, dynamic>);
   }
 

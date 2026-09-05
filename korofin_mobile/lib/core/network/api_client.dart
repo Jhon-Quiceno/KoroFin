@@ -73,19 +73,36 @@ class ApiClient {
 
   void close() => _dio.close(force: true);
 
+  /// Opciones por request; hoy solo se usa para alargar el timeout de lectura
+  /// en las operaciones que pasan por un proveedor de IA.
+  Options? _opts(Duration? timeout) =>
+      timeout == null ? null : Options(receiveTimeout: timeout);
+
   Future<Response<dynamic>> get(
     String path, {
     Map<String, dynamic>? query,
+    Duration? timeout,
   }) =>
-      _send(() => _dio.get<dynamic>(path, queryParameters: query));
+      _send(() => _dio.get<dynamic>(path,
+          queryParameters: query, options: _opts(timeout)));
 
-  Future<Response<dynamic>> post(String path, {Object? body}) =>
-      _send(() => _dio.post<dynamic>(path, data: body));
+  Future<Response<dynamic>> post(
+    String path, {
+    Object? body,
+    Duration? timeout,
+  }) =>
+      _send(() =>
+          _dio.post<dynamic>(path, data: body, options: _opts(timeout)));
 
   /// Igual que [post] pero para `multipart/form-data` (Dio pone el header y el
   /// boundary a partir del [FormData]). Pasa por el mismo mapeo de errores.
-  Future<Response<dynamic>> postForm(String path, FormData form) =>
-      _send(() => _dio.post<dynamic>(path, data: form));
+  Future<Response<dynamic>> postForm(
+    String path,
+    FormData form, {
+    Duration? timeout,
+  }) =>
+      _send(() =>
+          _dio.post<dynamic>(path, data: form, options: _opts(timeout)));
 
   Future<Response<dynamic>> put(String path, {Object? body}) =>
       _send(() => _dio.put<dynamic>(path, data: body));

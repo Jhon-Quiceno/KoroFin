@@ -1,3 +1,4 @@
+import '../../core/config/app_config.dart';
 import '../../core/network/api_client.dart';
 import '../../models/ai.dart';
 import '../../models/category.dart';
@@ -10,9 +11,9 @@ class AiRepository {
 
   Future<ChatMessage> chat(String message) async {
     final response =
-        await _client.post('/api/ai/chat', body: <String, dynamic>{
-      'message': message,
-    });
+        await _client.post('/api/ai/chat',
+        body: <String, dynamic>{'message': message},
+        timeout: AppConfig.aiRequestTimeout);
     return ChatMessage.assistantReply(response.data as Map<String, dynamic>);
   }
 
@@ -45,7 +46,8 @@ class AiRepository {
   }
 
   Future<AiInsight> generateInsight() async {
-    final response = await _client.post('/api/ai/insights/generate');
+    final response = await _client.post('/api/ai/insights/generate',
+        timeout: AppConfig.aiRequestTimeout);
     return AiInsight.fromJson(response.data as Map<String, dynamic>);
   }
 
@@ -55,11 +57,13 @@ class AiRepository {
     CategoryKind type = CategoryKind.expense,
   }) async {
     final response =
-        await _client.post('/api/ai/categorize', body: <String, dynamic>{
-      'description': description,
-      'amount': ?amount,
-      'type': type.wire,
-    });
+        await _client.post('/api/ai/categorize',
+            body: <String, dynamic>{
+              'description': description,
+              'amount': ?amount,
+              'type': type.wire,
+            },
+            timeout: AppConfig.aiRequestTimeout);
     return CategorySuggestion.fromJson(response.data as Map<String, dynamic>);
   }
 
@@ -69,6 +73,7 @@ class AiRepository {
     final response = await _client.post(
       '/api/receipts/scan',
       body: <String, dynamic>{'imageDataUri': imageDataUri},
+      timeout: AppConfig.aiRequestTimeout,
     );
     return ReceiptExtraction.fromJson(response.data as Map<String, dynamic>);
   }
