@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../models/category.dart';
 import '../models/chat_message.dart';
 import '../models/notification_item.dart';
-import '../models/subscription.dart';
 import '../models/transaction.dart';
 import '../theme/app_colors.dart';
 
@@ -116,12 +115,6 @@ class MockData {
 
 
 
-  static final List<Subscription> subscriptions = <Subscription>[
-    Subscription(id: 's1', name: 'Netflix', icon: Icons.tv_outlined, color: const Color(0xFFE50914), amount: 44900, nextChargeDate: _now.add(const Duration(days: 2))),
-    Subscription(id: 's2', name: 'Gimnasio Bodytech', icon: Icons.fitness_center_outlined, color: AppColors.categoryPalette[2], amount: 129900, nextChargeDate: _now.add(const Duration(days: 4))),
-    Subscription(id: 's3', name: 'Spotify', icon: Icons.music_note_outlined, color: const Color(0xFF1DB954), amount: 19900, nextChargeDate: _now.add(const Duration(days: 12))),
-    Subscription(id: 's4', name: 'iCloud+', icon: Icons.cloud_outlined, color: AppColors.info, amount: 12900, nextChargeDate: _now.add(const Duration(days: 20))),
-  ];
 
   static final List<NotificationItem> notifications = <NotificationItem>[
     NotificationItem(id: 'n1', title: 'Netflix se cobra en 2 días', description: 'Se debitarán \$44.900 de tu tarjeta Visa Signature.', date: _now.subtract(const Duration(hours: 2)), type: NotificationType.dueDate),

@@ -560,3 +560,11 @@ Registro de lo entregado, fase por fase. Cada fase vive en su propia rama
 - `credit_cards_tab`, `credit_card_detail_screen` (tile + datos de corte/pago/tasa, acciones Compra con cuotas / Pago, historial de movimientos, plan de cuotas en sheet), `new_card_sheet` (form completo; edición oculta franquicia y cupo), `credit_card_tile` (sin dígitos, muestra franquicia).
 - Tests: `card_test` (6), `cards_controller_test` (2). Total 73, `flutter analyze` + `flutter test` en verde.
 - **Contrato verificado contra el backend local:** compra con `installmentCount` → movimiento `INSTALLMENT_PURCHASE` con `installmentPlanId`; el plan de cuotas se lee del endpoint anidado.
+
+### Fase 7 — Pagos recurrentes / suscripciones ✅ (rama `feat/mobile-fase-7-recurrentes`)
+
+- Modelo `RecurringPayment` + enum `RecurringFrequency` (MONTHLY/WEEKLY). Se eliminó el mock `subscriptions`.
+- `RecurringPaymentRepository` (`/api/recurring` CRUD + `PATCH /toggle` + `PATCH /pay` — desanida `recurringPayment` de la respuesta). `recurringPaymentsProvider` (`AsyncNotifier`) con `create`/`edit`/`remove`/`toggle`/`pay`, reordenando por `nextPaymentDate`.
+- `subscriptions_tab` reescrita (carga/error/vacío, swipe-delete, botón "Pagar", switch activo/pausado, tap para editar). `new_subscription_sheet` devuelve datos; edición oculta la fecha del primer pago. `subscription_tile` usa `CategoryVisuals` para ícono/color.
+- Tests: `recurring_payment_test` (5), `recurring_controller_test` (3). Total 81, `flutter analyze` + `flutter test` en verde.
+- **Contrato verificado contra el backend local:** `pay` antes de la fecha de vencimiento → 409 con mensaje amigable (se muestra en SnackBar); `toggle` invierte `isActive`.
