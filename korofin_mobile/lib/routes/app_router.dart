@@ -16,7 +16,6 @@ import '../screens/receipt_scan/receipt_scan_screen.dart';
 import '../screens/reports/reports_screen.dart';
 import '../screens/settings/settings_screen.dart';
 import '../screens/shell/scaffold_with_nav.dart';
-import '../screens/telegram/telegram_screen.dart';
 import '../state/auth/auth_controller.dart';
 import '../state/auth/auth_state.dart';
 
@@ -84,7 +83,6 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/import-statement', builder: (context, state) => const ImportStatementScreen()),
       GoRoute(path: '/reports', builder: (context, state) => const ReportsScreen()),
       GoRoute(path: '/receipt-scan', builder: (context, state) => const ReceiptScanScreen()),
-      GoRoute(path: '/telegram', builder: (context, state) => const TelegramScreen()),
     ],
   );
 });

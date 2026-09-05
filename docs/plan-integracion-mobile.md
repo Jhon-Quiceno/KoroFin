@@ -612,3 +612,24 @@ Registro de lo entregado, fase por fase. Cada fase vive en su propia rama
 - `import_statement_screen` reescrita: `file_picker` (pdf/csv/xlsx) → preview con checkboxes y marca de duplicado y categoría sugerida → confirmar crea los movimientos e invalida `movementsProvider`. Maneja el 422 de PDF con contraseña pidiéndola y reintentando.
 - Tests: `statement_test` (4). Total 113, `flutter analyze` + `flutter test` en verde.
 - **Verificación end-to-end pendiente:** igual que recibos, la extracción usa IA; el contrato con `StatementPreviewResponse`/`ImportConfirmRow` ya está alineado.
+
+### Fase 13 — Limpieza ✅ (rama `feat/mobile-fase-13-limpieza`)
+
+- Borrados: `lib/data/mock_data.dart`, `lib/models/transaction.dart` (`AppTransaction`), `lib/widgets/list_items/transaction_tile.dart`, `lib/screens/telegram/` completo, y la clase `AppCategory` de `category.dart`. Ya no queda ningún dato falso en `lib/`.
+- Ruta `/telegram` eliminada del router (Telegram queda fuera del alcance de la app, como se decidió). `category_donut_chart` refactorizado a un record `DonutEntry` (`label`/`value`/`color`) en vez de depender de `AppCategory`.
+- Se conserva `biometric_lock_screen` + la ruta `/lock` (pantalla diseñada, feature local futura, sin backend).
+- 113 tests en verde, `flutter analyze` limpio.
+
+---
+
+## 11. Estado final
+
+**Fases 0–13 completas y mergeadas a `develop` local.** 113 tests unitarios/de widget en verde, `flutter analyze` sin issues en cada fase.
+
+**Backend Docker local verificado end-to-end** para: auth, categorías, gastos/ingresos, análisis, reportes, deudas (+abonos/cargos), tarjetas (+cuotas), pagos recurrentes (+toggle/pay), notificaciones (+preferencias), preferencias de usuario y perfil.
+
+**Pendiente de probar con datos reales:** todo lo que pasa por un proveedor de IA — chat del asistente, `POST /api/receipts/scan` y `POST /api/statement-imports/preview`. Las keys del `.env` local no responden; los contratos de request/response ya están alineados con los DTOs del backend y la app maneja timeout/error.
+
+**Fuera de este trabajo (decidido):** push FCM (el backend usa `ExpoPushAdapter`; hace falta un `FcmPushAdapter`), OAuth de Google, y el botón de exportar reporte a CSV/JSON (necesita `share_plus`/`path_provider`).
+
+**Git:** cada fase en su rama `feat/mobile-fase-N-<slug>` mergeada `--no-ff` a `develop` local. **Sin push a `origin` ni PRs de GitHub** — pendiente del visto bueno.

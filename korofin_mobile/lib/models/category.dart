@@ -1,5 +1,3 @@
-import 'package:flutter/material.dart';
-
 /// Clasifica si una categoría agrupa gastos o ingresos. En el backend es el
 /// enum `CategoryType` (`EXPENSE` / `INCOME`).
 enum CategoryKind {
@@ -52,21 +50,4 @@ class Category {
         name: name ?? this.name,
         kind: kind ?? this.kind,
       );
-}
-
-/// Modelo de UI del prototipo (con ícono y color embebidos). Todavía lo usan las
-/// pantallas que siguen con datos falsos (movimientos, dashboard, picker de
-/// categorías); se retira cuando esas fases migren al modelo [Category].
-class AppCategory {
-  const AppCategory({
-    required this.id,
-    required this.name,
-    required this.icon,
-    required this.color,
-  });
-
-  final String id;
-  final String name;
-  final IconData icon;
-  final Color color;
 }

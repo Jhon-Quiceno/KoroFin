@@ -8,7 +8,6 @@ import '../../data/category_visuals.dart';
 import '../../data/formatters.dart';
 import '../../models/ai.dart';
 import '../../models/analysis.dart';
-import '../../models/category.dart';
 import '../../state/ai/ai_controller.dart';
 import '../../state/auth/auth_controller.dart';
 import '../../state/dashboard/dashboard_controller.dart';
@@ -93,16 +92,12 @@ class _DashboardBody extends StatelessWidget {
         (_monthShort(m.month), m.income, m.expense),
     ];
 
-    final List<(AppCategory, double)> donut = <(AppCategory, double)>[
+    final List<DonutEntry> donut = <DonutEntry>[
       for (final CategoryTotal c in s.topExpenseCategories)
         (
-          AppCategory(
-            id: c.categoryName,
-            name: c.categoryName,
-            icon: CategoryVisuals.iconForName(c.categoryName),
-            color: CategoryVisuals.colorForName(c.categoryName),
-          ),
-          c.total,
+          label: c.categoryName,
+          value: c.total,
+          color: CategoryVisuals.colorForName(c.categoryName),
         ),
     ];
 
