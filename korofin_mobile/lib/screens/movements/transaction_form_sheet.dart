@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/network/api_exception.dart';
 import '../../data/category_visuals.dart';
 import '../../data/formatters.dart';
+import '../../models/ai.dart';
 import '../../models/category.dart';
 import '../../models/movement.dart';
+import '../../state/ai/ai_controller.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
 import '../../theme/app_theme.dart';
@@ -67,8 +70,42 @@ class _TransactionFormSheetState extends ConsumerState<_TransactionFormSheet> {
   int? _categoryId;
   String? _categoryName;
   String? _error;
+  bool _suggesting = false;
 
   bool get _isExpense => _type == MovementType.expense;
+
+  Future<void> _suggestCategory() async {
+    final String description = _description.text.trim();
+    if (description.isEmpty) {
+      setState(() => _error = 'Escribí una descripción para que la IA sugiera.');
+      return;
+    }
+    setState(() {
+      _suggesting = true;
+      _error = null;
+    });
+    try {
+      final CategorySuggestion s =
+          await ref.read(aiRepositoryProvider).categorize(
+                description: description,
+                amount: _parsedAmount,
+                type: _isExpense ? CategoryKind.expense : CategoryKind.income,
+              );
+      if (!mounted) return;
+      if (s.hasSuggestion) {
+        setState(() {
+          _categoryId = s.categoryId;
+          _categoryName = s.categoryName;
+        });
+      } else {
+        setState(() => _error = 'La IA no encontró una categoría clara.');
+      }
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } finally {
+      if (mounted) setState(() => _suggesting = false);
+    }
+  }
 
   @override
   void initState() {
@@ -209,6 +246,18 @@ class _TransactionFormSheetState extends ConsumerState<_TransactionFormSheet> {
                       const SizedBox(width: AppSpacing.sm),
                       Text(_categoryName ?? 'Sin categoría'),
                       const Spacer(),
+                      IconButton(
+                        tooltip: 'Sugerir con IA',
+                        visualDensity: VisualDensity.compact,
+                        onPressed: _suggesting ? null : _suggestCategory,
+                        icon: _suggesting
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                    strokeWidth: 2))
+                            : const Icon(Icons.auto_awesome, size: 18),
+                      ),
                       const Icon(Icons.chevron_right_rounded, size: 18),
                     ],
                   ),

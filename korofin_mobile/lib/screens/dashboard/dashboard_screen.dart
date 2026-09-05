@@ -6,8 +6,10 @@ import 'package:intl/intl.dart';
 import '../../core/network/api_exception.dart';
 import '../../data/category_visuals.dart';
 import '../../data/formatters.dart';
+import '../../models/ai.dart';
 import '../../models/analysis.dart';
 import '../../models/category.dart';
+import '../../state/ai/ai_controller.dart';
 import '../../state/auth/auth_controller.dart';
 import '../../state/dashboard/dashboard_controller.dart';
 import '../../theme/app_colors.dart';
@@ -32,6 +34,8 @@ class DashboardScreen extends ConsumerWidget {
       authControllerProvider.select((s) => s.user?.name.split(' ').first ?? ''),
     );
 
+    final AsyncValue<AiInsight?> insight = ref.watch(latestInsightProvider);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -52,8 +56,14 @@ class DashboardScreen extends ConsumerWidget {
               onRetry: () => ref.read(dashboardProvider.notifier).refresh(),
             ),
             data: (data) => RefreshIndicator(
-              onRefresh: () => ref.read(dashboardProvider.notifier).refresh(),
-              child: _DashboardBody(data: data),
+              onRefresh: () async {
+                ref.invalidate(latestInsightProvider);
+                await ref.read(dashboardProvider.notifier).refresh();
+              },
+              child: _DashboardBody(
+                data: data,
+                insight: insight.valueOrNull,
+              ),
             ),
           ),
         ),
@@ -63,9 +73,10 @@ class DashboardScreen extends ConsumerWidget {
 }
 
 class _DashboardBody extends StatelessWidget {
-  const _DashboardBody({required this.data});
+  const _DashboardBody({required this.data, this.insight});
 
   final DashboardData data;
+  final AiInsight? insight;
 
   String _monthShort(int month) =>
       toBeginningOfSentenceCase(
@@ -108,6 +119,17 @@ class _DashboardBody extends StatelessWidget {
             expense: s.totalExpense,
           ),
           const SizedBox(height: AppSpacing.lg),
+          if (insight != null) ...[
+            LinkedAlertCard(
+              icon: Icons.psychology_outlined,
+              iconColor: koro.accent,
+              title: 'Insight de la IA',
+              description: insight!.content,
+              actionLabel: 'Abrir el asistente',
+              onTap: () => context.go('/assistant'),
+            ),
+            const SizedBox(height: AppSpacing.md),
+          ],
           if (data.prediction != null)
             LinkedAlertCard(
               icon: Icons.auto_awesome,
