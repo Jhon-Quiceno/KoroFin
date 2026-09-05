@@ -1,0 +1,480 @@
+# Plan de integración mobile ↔ backend de KoroFin
+
+> **Estado:** documento de planeación. No contiene código. Es la fuente de verdad para unir la app
+> Flutter (`korofin_mobile/`) con la API REST (`korofin-backend/`), rebanada por rebanada, probando
+> cada una antes de pasar a la siguiente.
+>
+> **Contexto:** el backend ya está prácticamente completo (ver `docs/backend-plan.md`). El mobile
+> hoy es 100 % UI con datos falsos (`lib/data/mock_data.dart`) y **cero** conexión con el backend.
+> Este plan cierra ese hueco.
+>
+> **Meta de paridad:** replicar lo que hacía el **frontend web de FinSmart** (Next.js), no la app RN
+> de FinSmart. Se deja **fuera** la integración de Telegram como pantalla de la app — el registro por
+> foto se hace con la **cámara nativa** del teléfono (`/api/receipts/scan`). Telegram sigue existiendo
+> en el backend como canal servidor-a-servidor opcional, ajeno a la app.
+
+---
+
+## Índice
+
+1. [Estado actual: qué está hecho y qué no](#1-estado-actual-qué-está-hecho-y-qué-no)
+2. [Inventario de endpoints del backend](#2-inventario-de-endpoints-del-backend)
+3. [Arquitectura de integración propuesta para el mobile](#3-arquitectura-de-integración-propuesta-para-el-mobile)
+4. [Stack de dependencias a agregar](#4-stack-de-dependencias-a-agregar)
+5. [Decisiones abiertas (requieren tu confirmación)](#5-decisiones-abiertas-requieren-tu-confirmación)
+6. [Cómo levantar todo en local para probar](#6-cómo-levantar-todo-en-local-para-probar)
+7. [Plan por fases (rebanadas verticales)](#7-plan-por-fases-rebanadas-verticales)
+8. [Estrategia de tests del mobile](#8-estrategia-de-tests-del-mobile)
+9. [Riesgos y notas](#9-riesgos-y-notas)
+
+---
+
+## 1. Estado actual: qué está hecho y qué no
+
+### 1.1 Backend — `korofin-backend/` (Java 21 + Spring Boot 4)
+
+**Estado: prácticamente completo.** `./mvnw.cmd compile` pasa limpio (verificado). 12 dominios de
+negocio implementados con controller + service + repository + mapper + entity + exception, todos con
+su suite de tests (TDD estricto: ~110 archivos de test).
+
+| Dominio | Endpoints | Estado |
+|---|---|---|
+| `user` (auth) | `/api/users/*` | ✅ registro, login, refresh, logout, perfil, contraseña, preferencias. Mobile-only ya aplicado: sin cookies, sin CSRF, refresh token en el body JSON. |
+| `expense` | `/api/expenses`, `/api/categories` | ✅ CRUD + filtros + paginación |
+| `income` | `/api/incomes` | ✅ CRUD |
+| `debt` | `/api/debts` + `/payments` + `/charges` | ✅ CRUD + abonos + cargos atómicos |
+| `card` | `/api/cards` + movimientos + cuotas | ✅ CRUD + compras/pagos + planes de cuotas + cierre de ciclo |
+| `recurringpayment` | `/api/recurring` | ✅ CRUD + toggle + pay |
+| `analysis` | `/api/analysis/*` | ✅ resumen, recomendaciones, predicción |
+| `report` | `/api/reports/*` | ✅ mensual, movimientos, export CSV/JSON |
+| `notification` | `/api/notifications/*` | ✅ listar, no-leídas, marcar, preferencias, push-token |
+| `ai` | `/api/ai/*`, `/api/receipts/scan` | ✅ chat, historial, uso, insights, categorización, estado de proveedores, escaneo de recibos. Patrón Strategy/Registry con 5 proveedores y fallback en cascada. **Requiere al menos una API key de proveedor configurada para funcionar de verdad.** |
+| `statement` | `/api/statement-imports/*` | ✅ preview (multipart PDF/CSV/XLSX) + confirm, con dedup |
+| `integration` (Telegram) | `/api/integrations/telegram/*` | ✅ implementado, **apagado por defecto**. Fuera del alcance de la app. |
+
+**Migraciones Flyway:** `V1`–`V7`, esquema limpio y consolidado.
+**Infra:** `Dockerfile` (multi-stage), `docker-compose.yml` en la raíz, workflows `ci.yml`,
+`deploy-backend.yml`, `trivy.yml`.
+
+**Lo que le falta al backend para la app:**
+
+- **Push real para Flutter.** `ExpoPushAdapter` habla el protocolo de Expo (era para la app RN).
+  Flutter necesita **FCM** → hace falta un `FcmPushAdapter` nuevo en `notification/service/channel/`.
+  No bloquea el MVP de integración: las notificaciones in-app funcionan sin esto.
+- **OAuth de Google.** No existe. El backend solo hace email + contraseña. El botón "Continuar con
+  Google" del login mobile no tiene contra qué hablar hoy.
+- Nada más. Todo lo demás que la app necesita ya está expuesto.
+
+### 1.2 Mobile — `korofin_mobile/` (Flutter / Dart)
+
+**Estado: maqueta visual completa, sin backend.** Todas las pantallas del flujo objetivo ya existen
+y se ven pobladas, pero con datos estáticos.
+
+**Pantallas ya construidas** (`lib/screens/`): `auth/` (login, register, biometric_lock),
+`dashboard/`, `movements/` (+ form sheet), `categories/` (+ form + picker), `debts_hub/` (tabs de
+deudas, tarjetas y suscripciones, con detalles y sheets de alta), `import_statement/`, `reports/`,
+`receipt_scan/`, `notifications/`, `settings/`, `assistant/`, `quick_add/`, `telegram/`.
+
+**Lo que NO existe todavía (el hueco completo):**
+
+| Falta | Detalle |
+|---|---|
+| Capa HTTP | No hay cliente HTTP. `pubspec.yaml` solo trae `google_fonts`, `fl_chart`, `go_router`, `intl`. |
+| Modelos serializables | `lib/models/*.dart` son clases de UI (`String id`, sin `fromJson`/`toJson`). No mapean los DTOs del backend. |
+| Sesión y tokens | No hay almacenamiento seguro, ni guardado de access/refresh token, ni refresh automático. |
+| Guard de rutas | El login hace `context.go('/home')` sin autenticar. No hay redirect por estado de sesión. |
+| Manejo de estado | Todo es `StatelessWidget` leyendo listas `static` de `MockData`. No hay gestor de estado. |
+| Configuración de entorno | No hay `API_BASE_URL` por flavor/`--dart-define`. |
+| Estados de carga / error | Las pantallas no contemplan spinners, errores de red, vacíos reales, reintentos. |
+| Tests | Solo el `test/widget_test.dart` por defecto. |
+
+**Datos del proyecto que sí están bien:** el design system (`lib/theme/`), la navegación
+(`go_router` con `StatefulShellRoute`), los widgets reutilizables (`lib/widgets/`), el `applicationId`
+Android (`com.korofin.korofin_mobile`). La UI no hay que rehacerla — hay que **conectarla**.
+
+### 1.3 Resumen del hueco
+
+> El backend está listo. El mobile es una fachada. **El 100 % del trabajo de este plan es construir
+> la capa de datos del mobile y cablear cada pantalla a su endpoint**, más dos ajustes chicos de
+> backend (FCM y decidir qué hacer con "Google").
+
+---
+
+## 2. Inventario de endpoints del backend
+
+Base: todas las rutas cuelgan de `/api`. Auth por `Authorization: Bearer <accessToken>` salvo las
+marcadas como públicas. Errores con forma `ErrorResponse` (`{ status, message, ... }`) desde
+`GlobalExceptionHandler`.
+
+### Autenticación — `/api/users` (público salvo indicado)
+
+| Método | Ruta | Cuerpo | Notas |
+|---|---|---|---|
+| POST | `/register` | `{ name, email, password }` | Devuelve `AuthResponse { accessToken, refreshToken, ... }` |
+| POST | `/login` | `{ email, password, rememberMe }` | idem |
+| POST | `/refresh` | `{ refreshToken }` | Rota el refresh token — hay que guardar el nuevo |
+| POST | `/logout` | `{ refreshToken }` | Revoca la sesión |
+| PUT | `/profile` | `ProfileUpdateRequest` | 🔒 |
+| PUT | `/password` | `PasswordChangeRequest` | 🔒 |
+| GET | `/preferences` | — | 🔒 tema / moneda / idioma |
+| PATCH | `/preferences` | `UserPreferencesUpdateRequest` | 🔒 |
+
+### Gastos e ingresos
+
+| Método | Ruta | Notas |
+|---|---|---|
+| GET | `/api/expenses` | Paginado (`Page<>` de Spring) + filtros: `categoryId`, `from`, `to`, `paymentMethod`, `page`, `size`, `sort` |
+| POST / PUT / DELETE | `/api/expenses`, `/api/expenses/{id}` | |
+| GET / POST / PUT / DELETE | `/api/incomes`, `/api/incomes/{id}` | Gemelo de gastos, sin método de pago |
+| GET | `/api/categories` | Lista (tipo `EXPENSE` / `INCOME`) |
+| POST / PUT / DELETE | `/api/categories`, `/api/categories/{id}` | |
+
+### Deudas — `/api/debts`
+
+| Método | Ruta |
+|---|---|
+| GET / POST | `/api/debts` |
+| GET / PUT / DELETE | `/api/debts/{id}` |
+| GET / POST | `/api/debts/{debtId}/payments` (abonos, bajan el saldo, crean un `Expense` vinculado) |
+| GET / POST | `/api/debts/{debtId}/charges` (cargos, suben el saldo) |
+
+### Tarjetas — `/api/cards`
+
+| Método | Ruta |
+|---|---|
+| GET / POST | `/api/cards` |
+| GET / PUT / DELETE | `/api/cards/{id}` |
+| POST | `/api/cards/{cardId}/purchases` (soporta compra a cuotas) |
+| POST | `/api/cards/{cardId}/payments` |
+| GET | `/api/cards/{cardId}/movements` (paginado) |
+| GET | `/api/cards/{cardId}/movements/{movementId}/installments` |
+
+### Pagos recurrentes — `/api/recurring`
+
+`GET`, `POST`, `PUT /{id}`, `DELETE /{id}`, `PATCH /{id}/toggle`, `PATCH /{id}/pay`.
+
+### Análisis y reportes
+
+| Método | Ruta | Notas |
+|---|---|---|
+| GET | `/api/analysis/summary` | `?year=&month=` — cifras del mes |
+| GET | `/api/analysis/recommendations` | |
+| GET | `/api/analysis/prediction` | predicción de fin de mes |
+| GET | `/api/reports/monthly` | `?year=&month=` |
+| GET | `/api/reports/movements` | `?year=&month=` — lista para tabla |
+| GET | `/api/reports/export` | `?format=csv\|json` — stream con `Content-Disposition` |
+
+### Notificaciones — `/api/notifications`
+
+`GET` (lista), `GET /unread-count`, `PATCH /{id}/read`, `PATCH /read-all`, `GET /preferences`,
+`PUT /preferences`, `POST /push-token` (`{ ... , deviceId }`), `DELETE /push-token/{deviceId}`.
+
+### IA — `/api/ai` y `/api/receipts`
+
+| Método | Ruta | Notas |
+|---|---|---|
+| POST | `/api/ai/chat` | `{ message }` → respuesta. Cuota mensual por usuario (429 al pasarse). Rate-limited. |
+| GET | `/api/ai/chat/history` | paginado |
+| GET | `/api/ai/chat/usage` | cuota usada / restante |
+| POST | `/api/ai/categorize` | sugiere categoría para una descripción |
+| POST | `/api/ai/insights/generate` | genera un insight nuevo |
+| GET | `/api/ai/insights` | último insight (204 si no hay) — *verificar la ruta exacta al implementar* |
+| GET | `/api/ai/providers/status` | qué proveedores están configurados (nunca la key) |
+| POST | `/api/receipts/scan` | `{ imageDataUri }` → monto/fecha/categoría extraídos. **No crea el gasto**, la app confirma con `POST /api/expenses`. Rate-limited. |
+
+### Importación de extractos — `/api/statement-imports`
+
+| Método | Ruta | Notas |
+|---|---|---|
+| POST | `/preview` | `multipart/form-data`, archivo PDF/CSV/XLSX (máx 10 MB) → filas con marca de posible duplicado |
+| POST | `/confirm` | `StatementConfirmRequest` → crea los movimientos elegidos |
+
+---
+
+## 3. Arquitectura de integración propuesta para el mobile
+
+Se respeta la organización actual del proyecto ("por tipo + feature"). Se agregan estas carpetas:
+
+```
+lib/
+  core/
+    config/        AppConfig (lee API_BASE_URL de --dart-define), Flavor
+    network/       ApiClient (Dio), AuthInterceptor, RefreshInterceptor, ApiException
+    storage/       SecureSessionStore (flutter_secure_storage: access + refresh token)
+    result/        helpers de error → mensaje (equivalente al getApiErrorMessage de FinSmart)
+  models/          DTOs con fromJson/toJson (reemplazan las clases de UI actuales):
+                   auth_response, user, category, expense, income, debt, debt_payment,
+                   debt_charge, credit_card, card_movement, installment, recurring_payment,
+                   notification, notification_preference, analysis_summary, monthly_report,
+                   chat_message, insight, receipt_extraction, statement_preview_row,
+                   page_response<T>  (envoltura genérica para los Page<> de Spring)
+  data/
+    repositories/  un repositorio por dominio: auth, category, expense, income, debt, card,
+                   recurring_payment, analysis, report, notification, ai, statement
+    (mock_data.dart y formatters.dart siguen hasta que cada fase los reemplace)
+  state/           providers por feature (según gestor elegido — ver sección 5):
+                   auth, categories, movements, dashboard, debts, cards, subscriptions,
+                   notifications, assistant, preferences
+  routes/          app_router.dart + redirect basado en estado de sesión (nuevo)
+```
+
+**Principios:**
+
+1. **Pantalla → provider → repositorio → ApiClient.** La pantalla nunca llama HTTP directo.
+2. **Un repositorio por dominio**, con métodos que devuelven modelos ya deserializados o lanzan
+   `ApiException` tipada.
+3. **El `ApiClient` centraliza:** base URL, header `Authorization`, timeout, y el interceptor que
+   ante un 401/403 intenta `POST /api/users/refresh` una vez y reintenta la request (mismo patrón que
+   `api-client.ts` de FinSmart, adaptado a Dio).
+4. **Sesión:** access token en memoria + refresh token en `flutter_secure_storage`. Al arrancar la
+   app, si hay refresh token guardado, se intenta un refresh silencioso antes de decidir la ruta
+   inicial.
+5. **`--dart-define=API_BASE_URL=...`** para no hardcodear la URL. Sin default de producción en el
+   código.
+
+---
+
+## 4. Stack de dependencias a agregar
+
+| Necesidad | Paquete recomendado | Alternativa | Por qué el recomendado |
+|---|---|---|---|
+| Cliente HTTP | `dio` | `http` | Interceptores de primera clase (auth + refresh + logging), cancelación, `FormData` para el multipart de extractos. Es el equivalente directo del `axios` que ya usaba FinSmart. |
+| Almacenamiento seguro | `flutter_secure_storage` | — | Keychain (iOS) / Keystore (Android) para el refresh token. |
+| Gestor de estado | `flutter_riverpod` | `flutter_bloc`, `provider` | Testeable sin `BuildContext`, `AsyncNotifier`/`FutureProvider` cubren carga/error/refetch sin boilerplate, overrides triviales en tests. **Ver sección 5 — es tu decisión.** |
+| Serialización JSON | `freezed` + `json_serializable` (codegen) | `fromJson` a mano | Son ~25 DTOs; codegen evita errores de tipeo y da `copyWith`/`==` gratis. **Ver sección 5.** |
+| Cámara para recibos | `image_picker` | `camera` | La forma más simple de "sacar foto o elegir de galería" y obtener bytes → data URI para `/api/receipts/scan`. |
+| Elegir archivo (extractos) | `file_picker` | — | Selección de PDF/CSV/XLSX del sistema. |
+| Formateo de fechas/moneda | `intl` (ya está) | — | — |
+| Biometría (lock local) | `local_auth` | — | La pantalla `biometric_lock_screen` ya existe; es feature local, sin backend. |
+| Push (fase posterior) | `firebase_messaging` | — | Requiere el `FcmPushAdapter` en el backend primero. Diferido. |
+
+---
+
+## 5. Decisiones abiertas (requieren tu confirmación)
+
+1. **Gestor de estado.** Recomiendo **Riverpod**. Alternativas reales: Bloc (más ceremonia, muy
+   explícito) o Provider (más simple, menos ayuda con async). Elegir uno define la carpeta `state/`
+   y todos los ejemplos de las fases.
+2. **Serialización JSON: codegen (`freezed`) o `fromJson` a mano.** Codegen agrega `build_runner` al
+   flujo; a mano es cero setup pero más repetitivo y frágil con ~25 modelos.
+3. **Botón "Continuar con Google" en el login.** El backend no tiene OAuth. Opciones: (a) quitar el
+   botón para el MVP, (b) planear OAuth de Google como trabajo aparte (backend + app). Recomiendo (a).
+4. **Push notifications.** `ExpoPushAdapter` no sirve para Flutter. Plan: dejar las notificaciones
+   in-app para el MVP y hacer FCM (`FcmPushAdapter` en backend + `firebase_messaging` en la app) como
+   fase posterior. Confirmar que ese orden te sirve.
+5. **Pantalla `/telegram` del mobile.** Queda fuera del alcance. Opciones: borrar la ruta + el
+   archivo `telegram_screen.dart`, o dejarla parqueada sin entrada de navegación. Recomiendo borrar.
+
+---
+
+## 6. Cómo levantar todo en local para probar
+
+Cada fase se prueba con el backend corriendo de verdad contra Postgres. Setup una sola vez:
+
+1. **Base de datos + backend:** `docker-compose.yml` (raíz del repo) levanta Postgres. Variables
+   mínimas en `.env` de la raíz o de `korofin-backend/`: `JWT_SECRET`, `JWT_ISSUER`,
+   `JWT_ACCESS_EXPIRATION_MS` (p. ej. `900000`), `JWT_REFRESH_EXPIRATION_MS` (p. ej. `604800000`),
+   `SPRING_DATASOURCE_URL/USERNAME/PASSWORD`.
+2. **Backend:** `cd korofin-backend && ./mvnw.cmd spring-boot:run`. Swagger en
+   `http://localhost:8080/swagger-ui.html` para probar endpoints a mano.
+3. **App apuntando al backend:**
+   - Emulador Android: `flutter run --dart-define=API_BASE_URL=http://10.0.2.2:8080`
+     (`10.0.2.2` es el host desde el emulador).
+   - Dispositivo físico: usar la **IP LAN** de la PC (`http://192.168.x.x:8080`), no `localhost`.
+4. **Para las fases de IA:** configurar al menos una API key de proveedor en el `.env` del backend
+   (p. ej. `GEMINI_API_KEY`). Sin eso, `/api/ai/*` responde 503.
+
+---
+
+## 7. Plan por fases (rebanadas verticales)
+
+Cada fase es **entregable y probable de punta a punta** antes de seguir. Orden pensado para que cada
+una desbloquee a la siguiente. TDD: el test de cada repositorio/provider se escribe antes que el
+código.
+
+### Fase 0 — Fundaciones (sin UI nueva)
+
+- Agregar dependencias (sección 4, según decisiones de la sección 5).
+- `lib/core/config/` — `AppConfig` con `API_BASE_URL`.
+- `lib/core/network/` — `ApiClient` (Dio), `AuthInterceptor` (mete el Bearer), `ApiException`
+  (mapea `ErrorResponse` del backend a mensaje).
+- `lib/core/storage/` — `SecureSessionStore`.
+- `lib/models/page_response.dart` — envoltura genérica de `Page<>`.
+- Agregar el job `mobile-checks` a `ci.yml` (`flutter analyze` + `flutter test`).
+- **Prueba:** test unitario del `ApiClient` con un mock de Dio (header, timeout, mapeo de error) +
+  `flutter analyze` limpio.
+
+### Fase 1 — Autenticación real
+
+- Modelos: `AuthResponse`, `User`.
+- `AuthRepository`: register / login / refresh / logout contra `/api/users/*`.
+- `RefreshInterceptor` en el `ApiClient`: 401 → un intento de refresh → reintento (con lock para no
+  disparar refresh en paralelo).
+- Estado `auth` (según gestor): `unknown / authenticated / unauthenticated`.
+- Bootstrap al arrancar: refresh silencioso si hay token guardado.
+- `app_router.dart`: `redirect` — sin sesión → `/login`; con sesión en `/login` → `/home`.
+- Cablear `login_screen` y `register_screen` (validación, estados de carga/error). Logout desde
+  `settings_screen`.
+- Quitar (o posponer) el botón de Google según decisión 3.
+- **Prueba:** con backend local — registrarse; cerrar y reabrir la app (la sesión persiste); forzar
+  expiración del access token y ver el refresh automático; logout deja la app en `/login`. Widget
+  tests de las dos pantallas con `AuthRepository` mockeado.
+
+### Fase 2 — Categorías
+
+- Modelo `Category` (con `CategoryType`).
+- `CategoryRepository` (CRUD) + provider (lista cacheada).
+- Cablear `categories_screen`, `category_form_sheet`, `category_picker_sheet`.
+- Reemplazar `MockData.categories`.
+- **Prueba:** crear / editar / borrar categoría y verla reflejada; el picker de categorías (que usan
+  gastos e ingresos) sale de la API.
+
+### Fase 3 — Movimientos (gastos + ingresos)
+
+- Modelos `Expense`, `Income` (+ `PaymentMethodType`).
+- `ExpenseRepository` / `IncomeRepository`: lista paginada con filtros, crear, editar, borrar.
+- Provider de la lista de movimientos (mezcla gastos + ingresos, orden por fecha desc, paginación
+  incremental, pull-to-refresh).
+- Cablear `movements_screen` y `transaction_form_sheet`. Cablear el `quick_add_sheet`.
+- Reemplazar `MockData.transactions` / `MockData.expenses`.
+- **Prueba:** crear un gasto desde el form y desde Quick-Add → aparece en la lista y en el backend
+  (Swagger); filtros por categoría y por rango de fechas; scroll infinito trae la página siguiente.
+
+### Fase 4 — Dashboard, reportes y análisis
+
+- Modelos `AnalysisSummary`, `MonthlyReport`, `MovementRow`, `Recommendation`, `MonthEndPrediction`.
+- `AnalysisRepository` + `ReportRepository`.
+- Cablear `dashboard_screen`: balance, gráfico ingresos vs gastos, donut por categoría, movimientos
+  recientes, tarjeta de alerta — todo desde `/api/analysis/summary` y `/api/reports/*`.
+- Cablear `reports_screen`. Export: `GET /api/reports/export` → guardar/compartir el archivo con
+  `path_provider` + `share_plus`.
+- **Prueba:** las cifras del dashboard cuadran con los movimientos creados en la Fase 3; cambiar de
+  mes recarga; el CSV exportado abre bien.
+
+### Fase 5 — Deudas
+
+- Modelos `Debt`, `DebtPayment`, `DebtCharge`.
+- `DebtRepository`: CRUD + `listPayments`/`addPayment` + `listCharges`/`addCharge`.
+- Cablear `debts_tab`, `debt_detail_screen`, `new_debt_sheet`.
+- **Prueba:** crear deuda; registrar un abono → el saldo baja y aparece un gasto vinculado; registrar
+  un cargo → el saldo sube. Mutar una deuda ajena responde 404 (no exponer existencia).
+
+### Fase 6 — Tarjetas de crédito
+
+- Modelos `CreditCard`, `CardMovement`, `Installment`.
+- `CardRepository`: CRUD + `registerPurchase` (con cuotas) + `registerPayment` + `movements`
+  (paginado) + `installments`.
+- Cablear `credit_cards_tab`, `credit_card_detail_screen`, `new_card_sheet`.
+- **Prueba:** crear tarjeta; compra normal y compra a N cuotas → ver el plan de cuotas; registrar un
+  pago; el ledger de movimientos es de solo lectura.
+
+### Fase 7 — Pagos recurrentes / suscripciones
+
+- Modelo `RecurringPayment` (+ `RecurringFrequency`).
+- `RecurringPaymentRepository`: CRUD + `toggle` + `pay`.
+- Cablear `subscriptions_tab`, `new_subscription_sheet`.
+- **Prueba:** crear suscripción; `pay` genera un gasto vinculado; `toggle` la pausa/activa; un pago
+  antes de tiempo responde el error esperado.
+
+### Fase 8 — Notificaciones (in-app)
+
+- Modelos `Notification`, `NotificationPreference`.
+- `NotificationRepository`: lista, `unread-count`, marcar leída / todas, preferencias.
+- Cablear `notifications_screen` y la campana del `app_header` (badge de no-leídas).
+- **Push queda para después** (decisión 4): sin `POST /push-token` todavía.
+- **Prueba:** disparar un job del backend (o insertar una notificación) → aparece en la lista con el
+  badge correcto; marcar todas como leídas.
+
+### Fase 9 — Preferencias y perfil
+
+- `UserRepository`: `getPreferences` / `updatePreferences` / `updateProfile` / `changePassword`.
+- Cablear `settings_screen`: tema, moneda e idioma desde `/api/users/preferences`; editar perfil;
+  cambiar contraseña. El `ThemeController` local se sincroniza con la preferencia del backend.
+- **Prueba:** cambiar el tema → persiste tras reabrir la app y se refleja al re-loguear en otro
+  dispositivo; cambio de contraseña obliga a re-login.
+
+### Fase 10 — Asistente de IA
+
+- Modelos `ChatMessage`, `ChatReply`, `Insight`, `AiUsage`, `CategorizeResponse`, `AiProviderStatus`.
+- `AiRepository`: `chat`, `history` (paginado), `usage`, `generateInsight`, `latestInsight`,
+  `categorize`, `providersStatus`.
+- Cablear `assistant_screen` (chat + contador de cuota + estado "sin proveedores configurados"), la
+  tarjeta de insight del dashboard, y la sugerencia automática de categoría en `transaction_form_sheet`
+  (`/api/ai/categorize`).
+- **Prueba** (con una API key de proveedor en el backend): mandar un mensaje y ver la respuesta; al
+  pasar la cuota mensual, la UI muestra el 429 con mensaje claro; generar un insight.
+
+### Fase 11 — Escaneo de recibos con cámara nativa
+
+- `image_picker` → foto → bytes → data URI.
+- `AiRepository.scanReceipt(imageDataUri)` → `POST /api/receipts/scan`.
+- Cablear `receipt_scan_screen`: tomar foto → llamada → prellenar `transaction_form_sheet` con lo
+  extraído → el usuario confirma → `POST /api/expenses`.
+- **Prueba:** foto de un recibo real → extrae monto/fecha/categoría → confirmar crea el gasto; foto
+  ilegible → error amigable; rate limit al insistir.
+
+### Fase 12 — Importación de extractos bancarios
+
+- `file_picker` (PDF/CSV/XLSX, máx 10 MB).
+- `StatementRepository`: `preview` (`FormData` multipart) + `confirm`.
+- Cablear `import_statement_screen`: elegir archivo → preview con filas y marca de posible duplicado →
+  el usuario elige cuáles importar → `confirm`.
+- Manejar los 422 específicos (PDF sin texto, PDF con contraseña, IA no interpretó nada).
+- **Prueba:** subir un extracto real → revisar → confirmar → los movimientos aparecen en la lista;
+  reimportar el mismo archivo marca los duplicados.
+
+### Fase 13 — Limpieza y cierre
+
+- Borrar `lib/data/mock_data.dart` y cualquier referencia restante.
+- Resolver la pantalla `/telegram` (decisión 5).
+- Resolver el botón de Google (decisión 3) si no se hizo en Fase 1.
+- Pasada de estados vacíos / error / offline en todas las pantallas.
+- **Prueba:** recorrido completo de la app sin `MockData` en el árbol de dependencias.
+
+### Fase posterior (fuera del MVP de integración) — Push FCM
+
+- Backend: `FcmPushAdapter` en `notification/service/channel/` (TDD), detrás del mismo
+  `NotificationSender`, degradación silenciosa como el de email.
+- App: `firebase_messaging`, permiso de notificaciones, registrar el token con
+  `POST /api/notifications/push-token` al loguear, borrarlo al hacer logout.
+- **Prueba:** con la app en segundo plano, un job del backend dispara una push que llega al device.
+
+---
+
+## 8. Estrategia de tests del mobile
+
+| Nivel | Herramienta | Qué cubre |
+|---|---|---|
+| Unit — repositorios | `dio` con `MockAdapter` / `http_mock_adapter` | Que cada método arme bien la request y deserialice/lance `ApiException` según el status. |
+| Unit — modelos | `flutter_test` | `fromJson`/`toJson` de cada DTO contra un payload real de ejemplo. |
+| Unit — providers | overrides del gestor de estado (p. ej. `ProviderScope overrides` en Riverpod) | Transiciones de estado: carga → datos / error, refetch, invalidación tras una mutación. |
+| Widget | `flutter_test` con providers/repos mockeados | Cada pantalla: estado de carga, estado con datos, estado de error, interacción principal. |
+| Integración | `integration_test/` contra backend local | Al menos el flujo de auth (registro → sesión persiste → refresh → logout) end-to-end. |
+
+- CI: job `mobile-checks` en `ci.yml`, condicional a cambios en `korofin_mobile/**` —
+  `flutter analyze` + `flutter test`. (Ya previsto en `docs/backend-plan.md`, sección 14.2.)
+- Fixtures de JSON reales guardados en `test/fixtures/` copiando respuestas de Swagger.
+
+---
+
+## 9. Riesgos y notas
+
+1. **Paginación de Spring.** Varios endpoints devuelven `Page<>` (`content`, `totalElements`,
+   `number`, `totalPages`, `last`). Un solo `PageResponse<T>` genérico en `lib/models/` lo resuelve
+   para todos.
+2. **Dinero.** El backend usa `BigDecimal`. En el mobile, evitar `double` para montos que se sumen en
+   el cliente; preferir `Decimal` (paquete `decimal`) o delegar las agregaciones al backend (el
+   dashboard ya lo hace). COP en la práctica no lleva decimales pero no asumirlo en el parseo.
+3. **Fechas.** `LocalDate` → `"yyyy-MM-dd"`, `Instant` → ISO-8601 UTC. Fijar el formato en cada DTO y
+   no re-inventarlo por pantalla.
+4. **Mensajes de error.** Replicar el `getApiErrorMessage` de FinSmart: sin respuesta → "no hay
+   conexión / revisá la IP"; con `ErrorResponse` → mostrar su `message`; fallback genérico.
+5. **Refresh en paralelo.** Si varias requests fallan con 401 a la vez, un solo refresh compartido
+   (lock/`Completer`) y todas reintentan con el token nuevo. FinSmart lo hace con un `refreshPromise`
+   único — replicar la idea.
+6. **`AuthResponse.refreshToken` rota en cada `/refresh`.** Si no se guarda el nuevo, el siguiente
+   refresh falla y el usuario queda deslogueado sin motivo aparente.
+7. **IA sin proveedor.** Las fases 9–11 necesitan una API key de proveedor en el backend. Sin eso,
+   `/api/ai/*` y `/api/receipts/scan` responden 503 — la UI debe manejarlo, no romperse.
+8. **Nota al margen:** la línea 52 de `docs/backend-plan.md` tiene un bloque de texto (letra de una
+   canción) pegado por error dentro de la sección 2. Conviene borrarlo en un commit de limpieza.
