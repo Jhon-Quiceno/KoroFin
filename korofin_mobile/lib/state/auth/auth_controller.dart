@@ -7,6 +7,9 @@ import '../../core/network/api_exception.dart';
 import '../../core/providers.dart';
 import '../../data/repositories/auth_repository.dart';
 import '../../models/auth_session.dart';
+import '../../models/user.dart';
+import '../../models/user_preferences.dart';
+import '../../theme/theme_controller.dart';
 import 'auth_state.dart';
 
 final authRepositoryProvider = Provider<AuthRepository>(
@@ -95,9 +98,19 @@ class AuthController extends Notifier<AuthState> {
     state = const AuthState.unauthenticated();
   }
 
+  /// Reemplaza el usuario en el estado tras editar el perfil, sin tocar tokens.
+  void applyUser(User user) {
+    if (state.status == AuthStatus.authenticated) {
+      state = AuthState.authenticated(user);
+    }
+  }
+
   Future<void> _persist(AuthSession session) async {
     ref.read(accessTokenProvider.notifier).state = session.accessToken;
     await ref.read(sessionStoreProvider).saveRefreshToken(session.refreshToken);
+    // El tema guardado del usuario manda al abrir sesión.
+    ThemeController.mode.value =
+        ThemePreference.fromWire(session.user.theme).mode;
   }
 
   Future<void> _clear() async {
