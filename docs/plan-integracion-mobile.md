@@ -552,3 +552,11 @@ Registro de lo entregado, fase por fase. Cada fase vive en su propia rama
 - `debts_tab` reescrita (carga/error/vacío, FAB, pull-to-refresh). `debt_detail_screen` reescrita: recarga del backend, resumen, progreso, historial combinado abonos/cargos ordenado, acciones "Abono"/"Cargo" (diálogo de monto), editar y borrar. `new_debt_sheet` devuelve datos; en edición oculta el monto total (inmutable). `debt_tile` sin `lender`.
 - Tests: `debt_test` (7), `debts_controller_test` (3). Total 66, `flutter analyze` + `flutter test` en verde.
 - **Contrato verificado contra el backend local:** abono baja el saldo y crea un `Expense` vinculado (`expenseId`); cargo devuelve la deuda con el saldo ya actualizado.
+
+### Fase 6 — Tarjetas de crédito ✅ (rama `feat/mobile-fase-6-tarjetas`)
+
+- Modelos `CreditCard` + enums `CardFranchise` / `CardMovementKind` / `InstallmentStatus`, `CardMovement`, `Installment`. Se eliminaron `creditCards` y `cardMovements` mock de `mock_data.dart`.
+- `CardRepository` (`/api/cards` CRUD + `/purchases` con `installmentCount` opcional + `/payments` + `/movements` + `/movements/{id}/installments`). `cardsProvider` (`AsyncNotifier`) + `cardDetailProvider(id)` + `cardInstallmentsProvider((cardId, movementId))`.
+- `credit_cards_tab`, `credit_card_detail_screen` (tile + datos de corte/pago/tasa, acciones Compra con cuotas / Pago, historial de movimientos, plan de cuotas en sheet), `new_card_sheet` (form completo; edición oculta franquicia y cupo), `credit_card_tile` (sin dígitos, muestra franquicia).
+- Tests: `card_test` (6), `cards_controller_test` (2). Total 73, `flutter analyze` + `flutter test` en verde.
+- **Contrato verificado contra el backend local:** compra con `installmentCount` → movimiento `INSTALLMENT_PURCHASE` con `installmentPlanId`; el plan de cuotas se lee del endpoint anidado.

@@ -5,12 +5,12 @@ import '../../models/credit_card.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 
-/// Credit-card-shaped tile with bank name, masked digits and a used/limit
-/// progress bar, tappable to open the movement history.
+/// Tile con forma de tarjeta: nombre, franquicia, banco y barra de uso del
+/// cupo. Tocable para abrir el detalle.
 class CreditCardTile extends StatelessWidget {
   const CreditCardTile({super.key, required this.card, required this.onTap});
 
-  final AppCreditCard card;
+  final CreditCard card;
   final VoidCallback onTap;
 
   @override
@@ -35,12 +35,22 @@ class CreditCardTile extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: Text(card.name, style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700)),
+                  child: Text(card.name,
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700)),
                 ),
-                Text(card.bank, style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13, fontWeight: FontWeight.w500)),
+                Text(card.bank ?? card.franchise.label,
+                    style: const TextStyle(
+                        color: Color(0xFF94A3B8),
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500)),
               ],
             ),
-            Text('•••• ${card.lastFourDigits}', style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 13, letterSpacing: 1.2)),
+            Text(card.franchise.label,
+                style: const TextStyle(
+                    color: Color(0xFF94A3B8), fontSize: 13, letterSpacing: 1.2)),
             const SizedBox(height: AppSpacing.lg),
             ClipRRect(
               borderRadius: BorderRadius.circular(AppRadii.pill),
@@ -55,20 +65,8 @@ class CreditCardTile extends StatelessWidget {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Disponible', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12)),
-                    Text(AppFormatters.currency(card.availableAmount), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-                  ],
-                ),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    const Text('Usado', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 12)),
-                    Text(AppFormatters.currency(card.usedAmount), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600)),
-                  ],
-                ),
+                _Stat(label: 'Disponible', value: card.availableCredit),
+                _Stat(label: 'Usado', value: card.currentBalance, end: true),
               ],
             ),
           ],
@@ -76,4 +74,25 @@ class CreditCardTile extends StatelessWidget {
       ),
     );
   }
+}
+
+class _Stat extends StatelessWidget {
+  const _Stat({required this.label, required this.value, this.end = false});
+
+  final String label;
+  final double value;
+  final bool end;
+
+  @override
+  Widget build(BuildContext context) => Column(
+        crossAxisAlignment:
+            end ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+        children: [
+          Text(label,
+              style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12)),
+          Text(AppFormatters.currency(value),
+              style: const TextStyle(
+                  color: Colors.white, fontWeight: FontWeight.w600)),
+        ],
+      );
 }
