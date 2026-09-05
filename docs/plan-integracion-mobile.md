@@ -508,3 +508,15 @@ Registro de lo entregado, fase por fase. Cada fase vive en su propia rama
 - Pantallas cableadas: `login_screen` y `register_screen` (formularios reales, validación, estados de carga/error; se quitó "Continuar con Google" y el atajo de biometría, sin backend); `settings_screen` → "Cerrar sesión" real.
 - Tests nuevos: `auth_session_test`, `auth_repository_test` (4), `auth_controller_test` (5), `widget_test` reescrito. Total 20, `flutter analyze` + `flutter test` en verde.
 - **Pendiente de probar en dispositivo:** login/registro/logout contra el backend local y persistencia de sesión tras cerrar la app.
+
+### Fase 2 — Categorías ✅ (rama `feat/mobile-fase-2-categorias`)
+
+- Modelo `Category` (`id`, `name`, `kind`) + enum `CategoryKind` (`EXPENSE`/`INCOME`) en `lib/models/category.dart`, junto al viejo `AppCategory` (que sigue usando el resto de pantallas mock hasta que migren).
+- **El backend no guarda ícono ni color** (`CategoryResponse` es `{ id, name, type }`), así que `lib/data/category_visuals.dart` los deriva del nombre: mapa de palabras clave → ícono, y hash estable del nombre → color de la paleta.
+- `lib/data/repositories/category_repository.dart` — CRUD contra `/api/categories` (`list` opcionalmente con `?type=`).
+- `lib/state/categories/categories_controller.dart` — `categoryRepositoryProvider` + `categoriesProvider` (`AsyncNotifier`): carga la lista, y `create`/`edit`/`delete` la actualizan en memoria y la reordenan por nombre.
+- `categories_screen` reescrita: estados de carga/error/vacío, filtro Todas/Gastos/Ingresos, pull-to-refresh, borrado con confirmación, errores del backend (409 nombre duplicado) en `SnackBar`.
+- `category_form_sheet` reescrito: nombre + tipo (Gasto/Ingreso) + preview del ícono/color derivado. Se quitaron los pickers de ícono y color (eran cosméticos, no persistían).
+- **Fuera de esta fase:** el `category_picker_sheet` y las pantallas de movimientos siguen con `MockData` — migran en la Fase 3.
+- Tests: `category_test` (3), `category_repository_test` (7), `categories_controller_test` (4). Total 33, `flutter analyze` + `flutter test` en verde.
+- **Contrato verificado contra el backend local:** usuario nuevo arranca con `[]` categorías; `POST` devuelve `{id,name,type}`; nombre duplicado → 409.
