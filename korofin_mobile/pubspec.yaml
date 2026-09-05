@@ -41,9 +41,17 @@ dependencies:
   go_router: ^14.6.2
   intl: ^0.19.0
 
+  # Capa de datos: cliente HTTP, estado y almacenamiento seguro de sesion.
+  dio: ^5.7.0
+  flutter_riverpod: ^2.6.1
+  flutter_secure_storage: ^9.2.4
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
+
+  # Adaptador de mock para probar el cliente Dio sin red real.
+  http_mock_adapter: ^0.6.1
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
