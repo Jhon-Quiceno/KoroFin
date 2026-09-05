@@ -4,7 +4,6 @@ import '../../data/mock_data.dart';
 import '../../models/category.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
-import '../categories/category_picker_sheet.dart';
 
 enum _ScanStage { capture, loading, result }
 
@@ -22,7 +21,7 @@ class _ReceiptScanScreenState extends State<ReceiptScanScreen> {
   _ScanStage _stage = _ScanStage.capture;
   final _amountController = TextEditingController(text: '68500');
   final _merchantController = TextEditingController(text: 'Panadería San José');
-  AppCategory _category = MockData.categoryById('food');
+  final AppCategory _category = MockData.categoryById('food');
 
   Future<void> _simulateCapture() async {
     setState(() => _stage = _ScanStage.loading);
@@ -41,10 +40,11 @@ class _ReceiptScanScreenState extends State<ReceiptScanScreen> {
             amountController: _amountController,
             merchantController: _merchantController,
             category: _category,
-            onPickCategory: () async {
-              final result = await showCategoryPicker(context, selected: _category);
-              if (result != null) setState(() => _category = result);
-            },
+            // El escaneo real de recibos y su selección de categoría llegan en
+            // la Fase 11 (cámara nativa + POST /api/receipts/scan).
+            onPickCategory: () => ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Disponible en la Fase 11')),
+            ),
           ),
       },
     );

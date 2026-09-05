@@ -520,3 +520,15 @@ Registro de lo entregado, fase por fase. Cada fase vive en su propia rama
 - **Fuera de esta fase:** el `category_picker_sheet` y las pantallas de movimientos siguen con `MockData` — migran en la Fase 3.
 - Tests: `category_test` (3), `category_repository_test` (7), `categories_controller_test` (4). Total 33, `flutter analyze` + `flutter test` en verde.
 - **Contrato verificado contra el backend local:** usuario nuevo arranca con `[]` categorías; `POST` devuelve `{id,name,type}`; nombre duplicado → 409.
+
+### Fase 3 — Movimientos (gastos + ingresos) ✅ (rama `feat/mobile-fase-3-movimientos`)
+
+- Modelo unificado `Movement` (`fromExpenseJson`/`fromIncomeJson`) + `MovementDraft` (payload de escritura, `toExpenseJson`/`toIncomeJson` con fecha ISO), enums `MovementType` y `PaymentMethod`.
+- `ExpenseRepository` (`/api/expenses`, paginado + filtros `categoryId`/`from`/`to`/`paymentMethod`) e `IncomeRepository` (`/api/incomes`, filtros `month`/`year`).
+- `movementsProvider` = `AsyncNotifierProvider.family<MovementsController, List<Movement>, MovementType>`: carga página 0, `loadMore` acumula, `add`/`edit`/`remove` mutan en memoria; `hasMore` desde `Page.last`.
+- `category_picker_sheet` **migrado** a `categoriesProvider` (categorías reales, filtradas por tipo, devuelve `Category`).
+- `movements_screen` reescrita: tabs Gastos/Ingresos, scroll infinito, pull-to-refresh, editar tocando, borrar con `Dismissible` + confirmación. `transaction_form_sheet` reescrito (monto, descripción opcional, categoría real, fecha no futura, método de pago en gastos; se quitó el toggle "Categorizado por IA"). Quick-Add persiste de verdad vía `scaffold_with_nav` (ahora `ConsumerWidget`).
+- `MovementTile` nuevo (usa `CategoryVisuals` sobre `categoryName`). El viejo `TransactionTile`/`AppTransaction` siguen para dashboard (Fase 4) y `receipt_scan` (Fase 11).
+- **Fuera de esta fase:** UI de filtros por categoría/fecha (el repo ya los soporta); el dashboard sigue con `MockData`.
+- Tests: `movement_test` (4), `movement_repositories_test` (7), `movements_controller_test` (4). Total 46, `flutter analyze` + `flutter test` en verde.
+- **Contrato verificado contra el backend local:** `POST /api/expenses` con `categoryId` devuelve `categoryName` resuelto; `GET` pagina con la forma `Page` estándar; ingreso sin categoría → `categoryId/categoryName` null.
