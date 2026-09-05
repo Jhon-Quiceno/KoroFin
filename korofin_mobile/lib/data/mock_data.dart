@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../models/category.dart';
 import '../models/chat_message.dart';
 import '../models/credit_card.dart';
-import '../models/debt.dart';
 import '../models/notification_item.dart';
 import '../models/subscription.dart';
 import '../models/transaction.dart';
@@ -115,44 +114,6 @@ class MockData {
 
   static double get totalBalance => 8450300;
 
-  static final List<Debt> debts = <Debt>[
-    Debt(
-      id: 'd1',
-      name: 'Crédito vehículo',
-      lender: 'Banco de Bogotá',
-      totalAmount: 32000000,
-      paidAmount: 21500000,
-      dueDate: _now.add(const Duration(days: 400)),
-      payments: <DebtPayment>[
-        DebtPayment(date: _now.subtract(const Duration(days: 15)), amount: 890000),
-        DebtPayment(date: _now.subtract(const Duration(days: 45)), amount: 890000),
-        DebtPayment(date: _now.subtract(const Duration(days: 75)), amount: 890000),
-      ],
-    ),
-    Debt(
-      id: 'd2',
-      name: 'Libre inversión',
-      lender: 'Bancolombia',
-      totalAmount: 6000000,
-      paidAmount: 2100000,
-      dueDate: _now.add(const Duration(days: 210)),
-      payments: <DebtPayment>[
-        DebtPayment(date: _now.subtract(const Duration(days: 10)), amount: 350000),
-        DebtPayment(date: _now.subtract(const Duration(days: 40)), amount: 350000),
-      ],
-    ),
-    Debt(
-      id: 'd3',
-      name: 'Estudios posgrado',
-      lender: 'Sistecrédito',
-      totalAmount: 9500000,
-      paidAmount: 8700000,
-      dueDate: _now.add(const Duration(days: 90)),
-      payments: <DebtPayment>[
-        DebtPayment(date: _now.subtract(const Duration(days: 5)), amount: 400000),
-      ],
-    ),
-  ];
 
   static final List<AppCreditCard> creditCards = <AppCreditCard>[
     AppCreditCard(
