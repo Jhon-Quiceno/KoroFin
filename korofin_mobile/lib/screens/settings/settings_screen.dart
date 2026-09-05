@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../state/auth/auth_controller.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
 import '../../theme/app_theme.dart';
@@ -10,17 +12,25 @@ import '../../widgets/cards/section_card.dart';
 /// Screen 15 — Configuración/Perfil: datos de perfil, cambiar contraseña,
 /// integración Telegram, preferencias de notificación, selector de tema y
 /// cerrar sesión. Reached from both the header avatar and gear icons.
-class SettingsScreen extends StatefulWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
 
   @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _notifyDueDates = true;
   bool _notifyAiInsights = true;
   bool _notifySystem = false;
+  bool _loggingOut = false;
+
+  Future<void> _logout() async {
+    setState(() => _loggingOut = true);
+    // Al terminar, la sesión pasa a no autenticada y el redirect del router
+    // manda al login solo.
+    await ref.read(authControllerProvider.notifier).logout();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -105,9 +115,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
           const SizedBox(height: AppSpacing.xl),
           OutlinedButton.icon(
-            onPressed: () => context.go('/login'),
-            icon: Icon(Icons.logout, color: koro.accent),
-            label: Text('Cerrar sesión', style: AppTextStyles.bodyMediumMedium(koro.accent)),
+            onPressed: _loggingOut ? null : _logout,
+            icon: _loggingOut
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2.5),
+                  )
+                : Icon(Icons.logout, color: koro.accent),
+            label: Text('Cerrar sesión',
+                style: AppTextStyles.bodyMediumMedium(koro.accent)),
             style: OutlinedButton.styleFrom(side: BorderSide(color: koro.accent)),
           ),
         ],

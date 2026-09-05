@@ -1,20 +1,56 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../core/network/api_exception.dart';
+import '../../state/auth/auth_controller.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 
-/// Screen 1 — Login: email + password, "Continuar con Google", link to
-/// Registro and a biometric shortcut into the lock screen.
-class LoginScreen extends StatefulWidget {
+/// Pantalla 1 — Login: correo + contraseña contra `POST /api/users/login`.
+/// La navegación al home la resuelve el `redirect` del router cuando la sesión
+/// pasa a autenticada.
+class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  ConsumerState<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _LoginScreenState extends ConsumerState<LoginScreen> {
+  final GlobalKey<FormState> _formKey = GlobalKey<FormState>();
+  final TextEditingController _email = TextEditingController();
+  final TextEditingController _password = TextEditingController();
+
   bool _obscure = true;
+  bool _submitting = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    _email.dispose();
+    _password.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!_formKey.currentState!.validate()) return;
+    FocusScope.of(context).unfocus();
+    setState(() {
+      _submitting = true;
+      _error = null;
+    });
+    try {
+      await ref.read(authControllerProvider.notifier).login(
+            email: _email.text,
+            password: _password.text,
+          );
+    } on ApiException catch (e) {
+      if (mounted) setState(() => _error = e.message);
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -23,83 +59,109 @@ class _LoginScreenState extends State<LoginScreen> {
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(AppSpacing.xxl),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: AppSpacing.xxl),
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(color: koro.accent, borderRadius: BorderRadius.circular(AppRadii.lg)),
-                child: const Center(child: Text('K', style: TextStyle(color: Colors.white, fontSize: 26, fontWeight: FontWeight.w700))),
-              ),
-              const SizedBox(height: AppSpacing.xl),
-              Text('Bienvenido de nuevo', style: Theme.of(context).textTheme.displayLarge),
-              const SizedBox(height: AppSpacing.xs),
-              Text('Ingresa a tu cuenta de KoroFin', style: Theme.of(context).textTheme.bodyLarge),
-              const SizedBox(height: AppSpacing.xxl),
-              const TextField(decoration: InputDecoration(labelText: 'Correo electrónico', hintText: 'tu@correo.com')),
-              const SizedBox(height: AppSpacing.md),
-              TextField(
-                obscureText: _obscure,
-                decoration: InputDecoration(
-                  labelText: 'Contraseña',
-                  suffixIcon: IconButton(
-                    icon: Icon(_obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined),
-                    onPressed: () => setState(() => _obscure = !_obscure),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: AppSpacing.xxl),
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: koro.accent,
+                    borderRadius: BorderRadius.circular(AppRadii.lg),
+                  ),
+                  child: const Center(
+                    child: Text('K',
+                        style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 26,
+                            fontWeight: FontWeight.w700)),
                   ),
                 ),
-              ),
-              const SizedBox(height: AppSpacing.sm),
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton(onPressed: () {}, child: const Text('¿Olvidaste tu contraseña?')),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              ElevatedButton(
-                onPressed: () => context.go('/home'),
-                child: const Text('Continuar'),
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              Row(
-                children: [
-                  Expanded(child: Divider(color: koro.border)),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md),
-                    child: Text('o', style: Theme.of(context).textTheme.bodyMedium),
+                const SizedBox(height: AppSpacing.xl),
+                Text('Bienvenido de nuevo',
+                    style: Theme.of(context).textTheme.displayLarge),
+                const SizedBox(height: AppSpacing.xs),
+                Text('Ingresa a tu cuenta de KoroFin',
+                    style: Theme.of(context).textTheme.bodyLarge),
+                const SizedBox(height: AppSpacing.xxl),
+                TextFormField(
+                  controller: _email,
+                  keyboardType: TextInputType.emailAddress,
+                  autofillHints: const [AutofillHints.email],
+                  decoration: const InputDecoration(
+                    labelText: 'Correo electrónico',
+                    hintText: 'tu@correo.com',
                   ),
-                  Expanded(child: Divider(color: koro.border)),
-                ],
-              ),
-              const SizedBox(height: AppSpacing.lg),
-              OutlinedButton.icon(
-                onPressed: () => context.go('/home'),
-                icon: const Icon(Icons.g_mobiledata, size: 26),
-                label: const Text('Continuar con Google'),
-              ),
-              const SizedBox(height: AppSpacing.md),
-              OutlinedButton.icon(
-                onPressed: () => context.push('/lock'),
-                icon: const Icon(Icons.fingerprint),
-                label: const Text('Ingresar con biometría'),
-              ),
-              const SizedBox(height: AppSpacing.xxl),
-              Center(
-                child: Wrap(
-                  alignment: WrapAlignment.center,
-                  children: [
-                    Text('¿No tienes cuenta? ', style: Theme.of(context).textTheme.bodyMedium),
-                    GestureDetector(
-                      onTap: () => context.push('/register'),
-                      child: Text('Regístrate', style: TextStyle(color: koro.accent, fontWeight: FontWeight.w600)),
+                  validator: _validateEmail,
+                ),
+                const SizedBox(height: AppSpacing.md),
+                TextFormField(
+                  controller: _password,
+                  obscureText: _obscure,
+                  autofillHints: const [AutofillHints.password],
+                  decoration: InputDecoration(
+                    labelText: 'Contraseña',
+                    suffixIcon: IconButton(
+                      icon: Icon(_obscure
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined),
+                      onPressed: () => setState(() => _obscure = !_obscure),
                     ),
-                  ],
+                  ),
+                  validator: (v) => (v == null || v.isEmpty)
+                      ? 'Ingresá tu contraseña'
+                      : null,
+                  onFieldSubmitted: (_) => _submit(),
                 ),
-              ),
-            ],
+                if (_error != null) ...[
+                  const SizedBox(height: AppSpacing.md),
+                  Text(_error!,
+                      style: TextStyle(
+                          color: Theme.of(context).colorScheme.error)),
+                ],
+                const SizedBox(height: AppSpacing.lg),
+                ElevatedButton(
+                  onPressed: _submitting ? null : _submit,
+                  child: _submitting
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2.5),
+                        )
+                      : const Text('Continuar'),
+                ),
+                const SizedBox(height: AppSpacing.xxl),
+                Center(
+                  child: Wrap(
+                    alignment: WrapAlignment.center,
+                    children: [
+                      Text('¿No tienes cuenta? ',
+                          style: Theme.of(context).textTheme.bodyMedium),
+                      GestureDetector(
+                        onTap: () => context.push('/register'),
+                        child: Text('Regístrate',
+                            style: TextStyle(
+                                color: koro.accent,
+                                fontWeight: FontWeight.w600)),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
+}
+
+String? _validateEmail(String? value) {
+  final String v = value?.trim() ?? '';
+  if (v.isEmpty) return 'Ingresá tu correo';
+  if (!v.contains('@') || !v.contains('.')) return 'Correo inválido';
+  return null;
 }
