@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../models/category.dart';
-import '../models/chat_message.dart';
 import '../models/transaction.dart';
 import '../theme/app_colors.dart';
 
@@ -116,19 +115,5 @@ class MockData {
 
 
 
-  static final List<ChatMessage> chatHistory = <ChatMessage>[
-    ChatMessage(author: ChatAuthor.user, text: '¿Cuánto gasté en comida este mes?', time: _now.subtract(const Duration(minutes: 12))),
-    ChatMessage(
-      author: ChatAuthor.assistant,
-      text: 'Este mes llevas \$612.000 en la categoría Comida, un 9% menos que el mes pasado. ¡Vas muy bien!',
-      time: _now.subtract(const Duration(minutes: 11)),
-    ),
-  ];
 
-  static const List<String> assistantSuggestions = <String>[
-    '¿Cómo voy con mi presupuesto?',
-    'Escanear un recibo',
-    'Ver mi reporte',
-    '¿Puedo pagar mi deuda antes?',
-  ];
 }

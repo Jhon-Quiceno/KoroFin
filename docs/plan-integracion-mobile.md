@@ -587,3 +587,12 @@ Registro de lo entregado, fase por fase. Cada fase vive en su propia rama
 - `settings_screen` reescrita: perfil tocable → sheet de edición (nombre + email), "Cambiar contraseña" → sheet (actual + nueva), sección Preferencias (tema + moneda + idioma), sección Notificaciones (Fase 8). Se quitó la entrada "Integración Telegram" (fuera de alcance).
 - Tests: `user_preferences_test` (6), `preferences_controller_test` (3). Total 96, `flutter analyze` + `flutter test` en verde.
 - **Contrato verificado contra el backend local:** `PATCH /preferences` devuelve las 3; `PUT /profile` devuelve el `User` completo; contraseña actual incorrecta → 401.
+
+### Fase 10 — Asistente de IA ✅ (rama `feat/mobile-fase-10-ia`)
+
+- Modelos en `ai.dart`: `ChatMessage` + `ChatRole`, `AiUsage`, `AiInsight`, `CategorySuggestion`, `AiProviderStatus`. Se reemplazó `chat_message.dart` y se quitó el mock `chatHistory`/`assistantSuggestions`.
+- `AiRepository` (`/api/ai/chat` + `/history` + `/usage`, `/api/ai/insights` GET+`/generate`, `/api/ai/categorize`, `/api/ai/providers/status`). `history` invierte el orden DESC del backend.
+- `assistantProvider` (`AsyncNotifier`: carga historial, `send()` agrega el par usuario/asistente y devuelve el error para mostrar en SnackBar — 429 cuota, 503 sin proveedor). `aiUsageProvider`, `aiProvidersStatusProvider` + `anyAiProviderConfiguredProvider`, `latestInsightProvider`.
+- `assistant_screen` reescrita: chat real, indicador de cuota en el subtítulo, banner "no hay proveedor configurado" que deshabilita el composer, burbuja de "escribiendo". Dashboard: tarjeta de **insight de la IA** cuando existe. `transaction_form_sheet`: botón **"Sugerir con IA"** (✨) que categoriza la descripción.
+- Tests: `ai_test` (6), `ai_controller_test` (4). Total 106, `flutter analyze` + `flutter test` en verde.
+- **Contrato verificado contra el backend local:** `providers/status` lista los 5 proveedores; `chat/usage` trae `used/limit/remaining`; `insights` → 204 sin datos. (El `.env` local tiene keys de proveedor; el chat real depende de que sean válidas.)
