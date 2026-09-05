@@ -478,3 +478,22 @@ código.
    `/api/ai/*` y `/api/receipts/scan` responden 503 — la UI debe manejarlo, no romperse.
 8. **Nota al margen:** la línea 52 de `docs/backend-plan.md` tiene un bloque de texto (letra de una
    canción) pegado por error dentro de la sección 2. Conviene borrarlo en un commit de limpieza.
+
+---
+
+## 10. Bitácora de avance
+
+Registro de lo entregado, fase por fase. Cada fase vive en su propia rama
+`feat/mobile-fase-N-<slug>` desde `develop` y vuelve a `develop` vía merge.
+
+### Fase 0 — Fundaciones ✅ (rama `feat/mobile-fase-0-fundaciones`)
+
+- Dependencias nuevas: `dio`, `flutter_riverpod`, `flutter_secure_storage` (+ `http_mock_adapter` en dev).
+- `lib/core/config/app_config.dart` — `API_BASE_URL` por `--dart-define` (default `http://10.0.2.2:8080`), timeout de 15 s.
+- `lib/core/network/` — `ApiClient` sobre Dio: header `Authorization`, verbos `get/post/put/patch/delete`, interceptor que ante un 401/403 hace **un** refresh con single-flight (`_inFlightRefresh`) y reintenta la request; `ApiException` tipada; `mapDioException` (mismo criterio que el `getApiErrorMessage` de FinSmart).
+- `lib/core/storage/session_store.dart` — interfaz `SessionStore` + `SecureSessionStore` (Keychain/Keystore) + `InMemorySessionStore` para tests. Solo persiste el refresh token; el access token vive en memoria.
+- `lib/models/page_response.dart` — `PageResponse<T>` genérico para los `Page<>` de Spring.
+- `lib/core/providers.dart` — `accessTokenProvider`, `sessionStoreProvider`, `apiClientProvider`.
+- `main.dart` envuelto en `ProviderScope`.
+- Tests: `test/core/api_client_test.dart` (8) + `test/models/page_response_test.dart` (2). `flutter analyze` y `flutter test` en verde.
+- **Backend local verificado:** `docker compose up -d db app` → `/actuator/health` UP, `POST /api/users/register` y `/login` devuelven el `AuthResponse` real.
