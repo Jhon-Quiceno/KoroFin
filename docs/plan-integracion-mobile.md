@@ -568,3 +568,13 @@ Registro de lo entregado, fase por fase. Cada fase vive en su propia rama
 - `subscriptions_tab` reescrita (carga/error/vacío, swipe-delete, botón "Pagar", switch activo/pausado, tap para editar). `new_subscription_sheet` devuelve datos; edición oculta la fecha del primer pago. `subscription_tile` usa `CategoryVisuals` para ícono/color.
 - Tests: `recurring_payment_test` (5), `recurring_controller_test` (3). Total 81, `flutter analyze` + `flutter test` en verde.
 - **Contrato verificado contra el backend local:** `pay` antes de la fecha de vencimiento → 409 con mensaje amigable (se muestra en SnackBar); `toggle` invierte `isActive`.
+
+### Fase 8 — Notificaciones in-app ✅ (rama `feat/mobile-fase-8-notificaciones`)
+
+- Modelo `AppNotification` (no `Notification`, choca con Flutter) + enum `NotificationKind` (7 tipos, con ícono) + `NotificationPreferences` (6 flags). Se reemplazó `notification_item.dart` y se quitó el mock `notifications`.
+- `NotificationRepository` (`/api/notifications` list + `unread-count` + `{id}/read` + `read-all` + `preferences`). `notificationsProvider` (`AsyncNotifier`: list, markAsRead, markAllAsRead) + `unreadCountProvider` (`FutureProvider`, se invalida al marcar) + `notificationPreferencesProvider` (`AsyncNotifier`, guardado optimista).
+- `notifications_screen` reescrita (tabs Todas/No leídas, "Marcar todas", swipe para leer, pull-to-refresh). `notification_tile` usa `AppNotification` + ícono por tipo.
+- `app_header` pasa a `ConsumerWidget`: **badge de no leídas** en la campana e **inicial real** del usuario en el avatar. `settings_screen`: la sección Notificaciones se cablea a `notificationPreferencesProvider` (6 switches) y el perfil muestra nombre/email reales.
+- **Push token (FCM) sigue diferido** — el backend espera un token de Expo; hace falta un `FcmPushAdapter` en el backend.
+- Tests: `notification_test` (4), `notifications_controller_test` (3). Total 88, `flutter analyze` + `flutter test` en verde.
+- **Contrato verificado contra el backend local:** `unread-count` devuelve un número plano; `preferences` trae las 6 flags con defaults.

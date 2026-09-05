@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../models/notification.dart';
 import '../../state/auth/auth_controller.dart';
+import '../../state/notifications/notifications_controller.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
 import '../../theme/app_theme.dart';
@@ -20,9 +22,6 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
-  bool _notifyDueDates = true;
-  bool _notifyAiInsights = true;
-  bool _notifySystem = false;
   bool _loggingOut = false;
 
   Future<void> _logout() async {
@@ -40,27 +39,40 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       body: ListView(
         padding: const EdgeInsets.all(AppSpacing.lg),
         children: [
-          SectionCard(
-            child: Row(
-              children: [
-                CircleAvatar(
-                  radius: 28,
-                  backgroundColor: koro.accent,
-                  child: const Text('V', style: TextStyle(color: Colors.white, fontSize: 22, fontWeight: FontWeight.w700)),
-                ),
-                const SizedBox(width: AppSpacing.lg),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Valentina Ramírez', style: Theme.of(context).textTheme.titleLarge),
-                      Text('valentina.ramirez@korofin.com', style: Theme.of(context).textTheme.bodyMedium),
-                    ],
+          Builder(builder: (context) {
+            final user = ref.watch(authControllerProvider).user;
+            return SectionCard(
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    radius: 28,
+                    backgroundColor: koro.accent,
+                    child: Text(
+                      (user?.name.trim().isNotEmpty ?? false)
+                          ? user!.name.trim()[0].toUpperCase()
+                          : '?',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 22,
+                          fontWeight: FontWeight.w700),
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ),
+                  const SizedBox(width: AppSpacing.lg),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(user?.name ?? '—',
+                            style: Theme.of(context).textTheme.titleLarge),
+                        Text(user?.email ?? '',
+                            style: Theme.of(context).textTheme.bodyMedium),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }),
           const SizedBox(height: AppSpacing.lg),
           SectionCard(
             title: 'Cuenta',
@@ -72,30 +84,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ),
           const SizedBox(height: AppSpacing.lg),
-          SectionCard(
+          const SectionCard(
             title: 'Notificaciones',
-            child: Column(
-              children: [
-                SwitchListTile.adaptive(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Vencimientos próximos'),
-                  value: _notifyDueDates,
-                  onChanged: (v) => setState(() => _notifyDueDates = v),
-                ),
-                SwitchListTile.adaptive(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Insights de la IA'),
-                  value: _notifyAiInsights,
-                  onChanged: (v) => setState(() => _notifyAiInsights = v),
-                ),
-                SwitchListTile.adaptive(
-                  contentPadding: EdgeInsets.zero,
-                  title: const Text('Notificaciones del sistema'),
-                  value: _notifySystem,
-                  onChanged: (v) => setState(() => _notifySystem = v),
-                ),
-              ],
-            ),
+            child: _NotificationPreferencesSection(),
           ),
           const SizedBox(height: AppSpacing.lg),
           SectionCard(
@@ -131,6 +122,53 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ),
     );
   }
+}
+
+/// Switches de preferencias de notificación contra
+/// `/api/notifications/preferences`. Cada cambio se guarda de una.
+class _NotificationPreferencesSection extends ConsumerWidget {
+  const _NotificationPreferencesSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final prefs = ref.watch(notificationPreferencesProvider);
+    return prefs.when(
+      loading: () => const Padding(
+        padding: EdgeInsets.all(AppSpacing.md),
+        child: Center(child: CircularProgressIndicator()),
+      ),
+      error: (_, _) => const Text('No se pudieron cargar las preferencias.'),
+      data: (p) {
+        void save(NotificationPreferences next) => ref
+            .read(notificationPreferencesProvider.notifier)
+            .save(next);
+        return Column(
+          children: [
+            _row('Recordatorios de pago', p.paymentReminders,
+                (v) => save(p.copyWith(paymentReminders: v))),
+            _row('Alertas de sobregasto', p.overspendAlerts,
+                (v) => save(p.copyWith(overspendAlerts: v))),
+            _row('Resumen semanal', p.weeklySummary,
+                (v) => save(p.copyWith(weeklySummary: v))),
+            _row('Recordatorios de inactividad', p.inactivityReminders,
+                (v) => save(p.copyWith(inactivityReminders: v))),
+            _row('Cierre de ciclo de tarjeta', p.cardCycleClose,
+                (v) => save(p.copyWith(cardCycleClose: v))),
+            _row('Notificaciones por email', p.emailEnabled,
+                (v) => save(p.copyWith(emailEnabled: v))),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _row(String label, bool value, ValueChanged<bool> onChanged) =>
+      SwitchListTile.adaptive(
+        contentPadding: EdgeInsets.zero,
+        title: Text(label),
+        value: value,
+        onChanged: onChanged,
+      );
 }
 
 class _SettingsTile extends StatelessWidget {

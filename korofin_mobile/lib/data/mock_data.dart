@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../models/category.dart';
 import '../models/chat_message.dart';
-import '../models/notification_item.dart';
 import '../models/transaction.dart';
 import '../theme/app_colors.dart';
 
@@ -116,13 +115,6 @@ class MockData {
 
 
 
-  static final List<NotificationItem> notifications = <NotificationItem>[
-    NotificationItem(id: 'n1', title: 'Netflix se cobra en 2 días', description: 'Se debitarán \$44.900 de tu tarjeta Visa Signature.', date: _now.subtract(const Duration(hours: 2)), type: NotificationType.dueDate),
-    NotificationItem(id: 'n2', title: 'Nuevo insight de la IA', description: 'Detectamos que gastaste 18% más en transporte este mes.', date: _now.subtract(const Duration(hours: 6)), type: NotificationType.ai),
-    NotificationItem(id: 'n3', title: 'Gasto registrado vía Telegram', description: 'Uber a oficina — \$18.900 categorizado automáticamente.', date: _now.subtract(const Duration(days: 1, hours: 4)), type: NotificationType.system, isRead: true),
-    NotificationItem(id: 'n4', title: 'Cuota de crédito vehículo próxima', description: 'Vence en 5 días. Monto sugerido: \$890.000.', date: _now.subtract(const Duration(days: 2)), type: NotificationType.dueDate, isRead: true),
-    NotificationItem(id: 'n5', title: 'Reporte mensual disponible', description: 'Tu reporte de julio ya está listo para revisar.', date: _now.subtract(const Duration(days: 3)), type: NotificationType.system, isRead: true),
-  ];
 
   static final List<ChatMessage> chatHistory = <ChatMessage>[
     ChatMessage(author: ChatAuthor.user, text: '¿Cuánto gasté en comida este mes?', time: _now.subtract(const Duration(minutes: 12))),
