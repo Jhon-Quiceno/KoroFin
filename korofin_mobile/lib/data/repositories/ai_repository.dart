@@ -63,6 +63,16 @@ class AiRepository {
     return CategorySuggestion.fromJson(response.data as Map<String, dynamic>);
   }
 
+  /// Escanea un recibo. `imageDataUri` debe ser un data URI
+  /// (`data:image/jpeg;base64,...`).
+  Future<ReceiptExtraction> scanReceipt(String imageDataUri) async {
+    final response = await _client.post(
+      '/api/receipts/scan',
+      body: <String, dynamic>{'imageDataUri': imageDataUri},
+    );
+    return ReceiptExtraction.fromJson(response.data as Map<String, dynamic>);
+  }
+
   Future<List<AiProviderStatus>> providersStatus() async {
     final response = await _client.get('/api/ai/providers/status');
     return (response.data as List<dynamic>)
