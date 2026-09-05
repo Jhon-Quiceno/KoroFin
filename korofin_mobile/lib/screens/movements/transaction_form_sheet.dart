@@ -1,88 +1,135 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../data/mock_data.dart';
+import '../../data/category_visuals.dart';
+import '../../data/formatters.dart';
 import '../../models/category.dart';
-import '../../models/transaction.dart';
-import '../../theme/app_colors.dart';
+import '../../models/movement.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_text_styles.dart';
 import '../../theme/app_theme.dart';
 import '../categories/category_picker_sheet.dart';
 
-/// Shared alta/edición bottom sheet for Gastos (screen 4) and Ingresos
-/// (screen 7) — same fields, only the [type] and accent differ. Also reused
-/// by Quick Add (screen 17) for the fast-entry flow from the FAB.
-Future<AppTransaction?> showTransactionForm(
+/// Resultado del formulario: el tipo final (puede haber cambiado con el toggle
+/// de Quick-Add) y el borrador a persistir.
+typedef MovementFormResult = ({MovementType type, MovementDraft draft});
+
+/// Bottom sheet de alta/edición compartido por Gastos e Ingresos, y reusado por
+/// Quick-Add con el toggle Ingreso/Gasto activo.
+Future<MovementFormResult?> showTransactionForm(
   BuildContext context, {
-  required TransactionType type,
-  AppTransaction? initial,
+  required MovementType type,
+  Movement? initial,
   bool allowTypeToggle = false,
 }) {
-  return showModalBottomSheet<AppTransaction>(
+  return showModalBottomSheet<MovementFormResult>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (context) => _TransactionFormSheet(type: type, initial: initial, allowTypeToggle: allowTypeToggle),
+    builder: (context) => _TransactionFormSheet(
+      type: type,
+      initial: initial,
+      allowTypeToggle: allowTypeToggle,
+    ),
   );
 }
 
-class _TransactionFormSheet extends StatefulWidget {
-  const _TransactionFormSheet({required this.type, this.initial, required this.allowTypeToggle});
+class _TransactionFormSheet extends ConsumerStatefulWidget {
+  const _TransactionFormSheet({
+    required this.type,
+    required this.allowTypeToggle,
+    this.initial,
+  });
 
-  final TransactionType type;
-  final AppTransaction? initial;
+  final MovementType type;
+  final Movement? initial;
   final bool allowTypeToggle;
 
   @override
-  State<_TransactionFormSheet> createState() => _TransactionFormSheetState();
+  ConsumerState<_TransactionFormSheet> createState() =>
+      _TransactionFormSheetState();
 }
 
-class _TransactionFormSheetState extends State<_TransactionFormSheet> {
-  late TransactionType _type = widget.initial?.type ?? widget.type;
-  late final TextEditingController _amountController =
-      TextEditingController(text: widget.initial?.amount.toStringAsFixed(0) ?? '');
-  late final TextEditingController _titleController = TextEditingController(text: widget.initial?.title ?? '');
-  late final TextEditingController _noteController = TextEditingController();
-  late AppCategory _category = widget.initial?.category ?? MockData.categories.first;
-  late DateTime _date = widget.initial?.date ?? DateTime.now();
-  bool _aiSuggested = false;
+class _TransactionFormSheetState extends ConsumerState<_TransactionFormSheet> {
+  late MovementType _type = widget.initial?.type ?? widget.type;
+  late final TextEditingController _amount = TextEditingController(
+    text: widget.initial != null
+        ? widget.initial!.amount.toStringAsFixed(0)
+        : '',
+  );
+  late final TextEditingController _description =
+      TextEditingController(text: widget.initial?.description ?? '');
 
-  bool get _isExpense => _type == TransactionType.expense;
+  late DateTime _date = widget.initial?.date ?? DateTime.now();
+  late PaymentMethod _paymentMethod =
+      widget.initial?.paymentMethod ?? PaymentMethod.cash;
+
+  int? _categoryId;
+  String? _categoryName;
+  String? _error;
+
+  bool get _isExpense => _type == MovementType.expense;
+
+  @override
+  void initState() {
+    super.initState();
+    _categoryId = widget.initial?.categoryId;
+    _categoryName = widget.initial?.categoryName;
+  }
+
+  @override
+  void dispose() {
+    _amount.dispose();
+    _description.dispose();
+    super.dispose();
+  }
+
+  double? get _parsedAmount {
+    final String raw =
+        _amount.text.replaceAll('.', '').replaceAll(',', '').trim();
+    final double? value = double.tryParse(raw);
+    return (value == null || value <= 0) ? null : value;
+  }
 
   Future<void> _pickCategory() async {
-    final result = await showCategoryPicker(context, selected: _category);
-    if (result != null) {
+    final Category? picked = await showCategoryPicker(
+      context,
+      kind: _isExpense ? CategoryKind.expense : CategoryKind.income,
+    );
+    if (picked != null) {
       setState(() {
-        _category = result;
-        _aiSuggested = false;
+        _categoryId = picked.id;
+        _categoryName = picked.name;
       });
     }
   }
 
   Future<void> _pickDate() async {
-    final picked = await showDatePicker(
+    final DateTime? picked = await showDatePicker(
       context: context,
       initialDate: _date,
       firstDate: DateTime(2020),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
+      lastDate: DateTime.now(), // el backend rechaza fechas futuras
     );
     if (picked != null) setState(() => _date = picked);
   }
 
-  void _save() {
-    final double? amount = double.tryParse(_amountController.text.replaceAll('.', '').replaceAll(',', ''));
-    if (amount == null || amount <= 0 || _titleController.text.trim().isEmpty) return;
-    Navigator.of(context).pop(
-      AppTransaction(
-        id: widget.initial?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
-        title: _titleController.text.trim(),
-        category: _category,
-        amount: amount,
-        date: _date,
-        type: _type,
-        categorizedByAi: _aiSuggested,
-      ),
+  void _submit() {
+    final double? amount = _parsedAmount;
+    if (amount == null) {
+      setState(() => _error = 'Ingresá un monto válido mayor a cero.');
+      return;
+    }
+    final MovementDraft draft = MovementDraft(
+      amount: amount,
+      date: _date,
+      description: _description.text.trim().isEmpty
+          ? null
+          : _description.text.trim(),
+      categoryId: _categoryId,
+      paymentMethod: _isExpense ? _paymentMethod : null,
     );
+    Navigator.of(context).pop((type: _type, draft: draft));
   }
 
   @override
@@ -111,19 +158,25 @@ class _TransactionFormSheetState extends State<_TransactionFormSheet> {
               ),
               if (widget.allowTypeToggle) ...[
                 const SizedBox(height: AppSpacing.md),
-                SegmentedButton<TransactionType>(
+                SegmentedButton<MovementType>(
                   segments: const [
-                    ButtonSegment(value: TransactionType.income, label: Text('Ingreso')),
-                    ButtonSegment(value: TransactionType.expense, label: Text('Gasto')),
+                    ButtonSegment(
+                        value: MovementType.income, label: Text('Ingreso')),
+                    ButtonSegment(
+                        value: MovementType.expense, label: Text('Gasto')),
                   ],
                   selected: {_type},
-                  onSelectionChanged: (s) => setState(() => _type = s.first),
+                  onSelectionChanged: (s) => setState(() {
+                    _type = s.first;
+                    _categoryId = null;
+                    _categoryName = null;
+                  }),
                 ),
               ],
               const SizedBox(height: AppSpacing.lg),
               Center(
                 child: TextField(
-                  controller: _amountController,
+                  controller: _amount,
                   keyboardType: TextInputType.number,
                   textAlign: TextAlign.center,
                   style: AppTextStyles.numericLarge(accent),
@@ -135,7 +188,12 @@ class _TransactionFormSheetState extends State<_TransactionFormSheet> {
                 ),
               ),
               const SizedBox(height: AppSpacing.lg),
-              TextField(controller: _titleController, decoration: const InputDecoration(labelText: 'Descripción')),
+              TextField(
+                controller: _description,
+                textCapitalization: TextCapitalization.sentences,
+                decoration:
+                    const InputDecoration(labelText: 'Descripción (opcional)'),
+              ),
               const SizedBox(height: AppSpacing.md),
               InkWell(
                 borderRadius: BorderRadius.circular(AppRadii.md),
@@ -144,9 +202,12 @@ class _TransactionFormSheetState extends State<_TransactionFormSheet> {
                   decoration: const InputDecoration(labelText: 'Categoría'),
                   child: Row(
                     children: [
-                      Icon(_category.icon, size: 18, color: _category.color),
+                      Icon(CategoryVisuals.iconForName(_categoryName),
+                          size: 18,
+                          color: CategoryVisuals.colorForName(_categoryName,
+                              income: !_isExpense)),
                       const SizedBox(width: AppSpacing.sm),
-                      Text(_category.name),
+                      Text(_categoryName ?? 'Sin categoría'),
                       const Spacer(),
                       const Icon(Icons.chevron_right_rounded, size: 18),
                     ],
@@ -163,32 +224,41 @@ class _TransactionFormSheetState extends State<_TransactionFormSheet> {
                     children: [
                       const Icon(Icons.calendar_today_outlined, size: 16),
                       const SizedBox(width: AppSpacing.sm),
-                      Text('${_date.day}/${_date.month}/${_date.year}'),
+                      Text(AppFormatters.longDate(_date)),
                     ],
                   ),
                 ),
               ),
-              const SizedBox(height: AppSpacing.md),
-              TextField(
-                controller: _noteController,
-                maxLines: 2,
-                decoration: const InputDecoration(labelText: 'Nota (opcional)'),
-              ),
               if (_isExpense) ...[
                 const SizedBox(height: AppSpacing.md),
-                SwitchListTile.adaptive(
-                  contentPadding: EdgeInsets.zero,
-                  value: _aiSuggested,
-                  onChanged: (v) => setState(() => _aiSuggested = v),
-                  activeThumbColor: AppColors.info,
-                  title: const Text('Categorizado por IA', style: TextStyle(fontSize: 13)),
-                  subtitle: const Text('Marca esta categoría como sugerida automáticamente', style: TextStyle(fontSize: 11)),
+                InputDecorator(
+                  decoration:
+                      const InputDecoration(labelText: 'Método de pago'),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<PaymentMethod>(
+                      isDense: true,
+                      isExpanded: true,
+                      value: _paymentMethod,
+                      items: [
+                        for (final PaymentMethod m in PaymentMethod.values)
+                          DropdownMenuItem(value: m, child: Text(m.label)),
+                      ],
+                      onChanged: (m) =>
+                          setState(() => _paymentMethod = m ?? _paymentMethod),
+                    ),
+                  ),
                 ),
+              ],
+              if (_error != null) ...[
+                const SizedBox(height: AppSpacing.md),
+                Text(_error!,
+                    style: TextStyle(
+                        color: Theme.of(context).colorScheme.error)),
               ],
               const SizedBox(height: AppSpacing.lg),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(backgroundColor: accent),
-                onPressed: _save,
+                onPressed: _submit,
                 child: const Text('Guardar'),
               ),
             ],

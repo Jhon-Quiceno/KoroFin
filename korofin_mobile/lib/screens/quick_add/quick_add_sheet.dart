@@ -1,11 +1,32 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../models/transaction.dart';
+import '../../core/network/api_exception.dart';
+import '../../models/movement.dart';
+import '../../state/movements/movements_controller.dart';
 import '../movements/transaction_form_sheet.dart';
 
-/// Screen 17 — Quick Add: the fast bottom-sheet entry point reachable from
-/// the FAB on every main screen (Inicio, Movimientos, Deudas, Asistente).
-/// Reuses the shared transaction form with the Ingreso/Gasto toggle on.
-Future<AppTransaction?> showQuickAddSheet(BuildContext context) {
-  return showTransactionForm(context, type: TransactionType.expense, allowTypeToggle: true);
+/// Pantalla 17 — Quick Add: alta rápida desde el FAB de cualquier pantalla
+/// principal. Reusa el formulario compartido con el toggle Ingreso/Gasto y
+/// persiste el movimiento contra el backend.
+Future<void> showQuickAddSheet(BuildContext context, WidgetRef ref) async {
+  final MovementFormResult? result = await showTransactionForm(
+    context,
+    type: MovementType.expense,
+    allowTypeToggle: true,
+  );
+  if (result == null) return;
+  try {
+    await ref.read(movementsProvider(result.type).notifier).add(result.draft);
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Movimiento guardado')),
+      );
+    }
+  } on ApiException catch (e) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text(e.message)));
+    }
+  }
 }

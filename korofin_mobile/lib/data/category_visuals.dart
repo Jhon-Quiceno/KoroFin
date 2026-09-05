@@ -13,22 +13,32 @@ import '../theme/app_colors.dart';
 class CategoryVisuals {
   const CategoryVisuals._();
 
-  static IconData iconFor(Category category) => _iconForName(category.name);
+  static IconData iconFor(Category category) => iconForName(category.name);
 
-  static Color colorFor(Category category) {
-    if (category.kind == CategoryKind.income) return AppColors.categoryPalette[2];
-    final int index =
-        category.name.toLowerCase().trim().hashCode.abs() %
-            AppColors.categoryPalette.length;
-    return AppColors.categoryPalette[index];
-  }
+  static Color colorFor(Category category) => colorForName(
+        category.name,
+        income: category.kind == CategoryKind.income,
+      );
 
-  static IconData _iconForName(String rawName) {
-    final String name = rawName.toLowerCase();
+  /// Variante para cuando solo se tiene el nombre (p. ej. `Movement.categoryName`,
+  /// que puede ser `null` si el movimiento no está clasificado).
+  static IconData iconForName(String? name) {
+    if (name == null || name.trim().isEmpty) return Icons.help_outline;
+    final String lower = name.toLowerCase();
     for (final entry in _keywordIcons.entries) {
-      if (entry.key.any(name.contains)) return entry.value;
+      if (entry.key.any(lower.contains)) return entry.value;
     }
     return Icons.category_outlined;
+  }
+
+  static Color colorForName(String? name, {bool income = false}) {
+    if (income) return AppColors.categoryPalette[2];
+    if (name == null || name.trim().isEmpty) {
+      return AppColors.categoryPalette.last; // slate, "sin categoría"
+    }
+    final int index = name.toLowerCase().trim().hashCode.abs() %
+        AppColors.categoryPalette.length;
+    return AppColors.categoryPalette[index];
   }
 
   /// Palabras clave → ícono. El orden no importa: la primera coincidencia gana.
