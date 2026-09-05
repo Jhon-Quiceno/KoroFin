@@ -49,6 +49,9 @@ dependencies:
   # Captura de recibos con la camara / galeria.
   image_picker: ^1.1.2
 
+  # Seleccion de archivos de extractos bancarios (PDF/CSV/XLSX).
+  file_picker: ^8.1.6
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

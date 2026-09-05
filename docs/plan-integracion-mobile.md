@@ -604,3 +604,11 @@ Registro de lo entregado, fase por fase. Cada fase vive en su propia rama
 - `receipt_scan_screen` reescrita: cámara / galería con `image_picker` → bytes → data URI base64 → `scanReceipt`. Estados capture / loading / notReceipt / result. El resultado es un formulario editable (tipo, monto, descripción, categoría real) que al confirmar crea el movimiento vía `movementsProvider`.
 - Tests: `receipt_scan_test` (3). Total 109, `flutter analyze` + `flutter test` en verde.
 - **Verificación end-to-end pendiente:** el escaneo real depende de un proveedor de IA de visión con key válida; el contrato de request/response ya está alineado con el `ReceiptExtraction` del backend. La app maneja `isReceipt=false` y el timeout de red.
+
+### Fase 12 — Importación de extractos ✅ (rama `feat/mobile-fase-12-extractos`)
+
+- Dependencia nueva: `file_picker`.
+- Modelos `StatementRow` (mutable en `selected`; los duplicados arrancan desmarcados) y `StatementPreview`. `StatementRepository` (`/preview` multipart vía `FormData` + `/confirm`). `ApiClient.postForm()` nuevo para multipart con el mismo mapeo de errores.
+- `import_statement_screen` reescrita: `file_picker` (pdf/csv/xlsx) → preview con checkboxes y marca de duplicado y categoría sugerida → confirmar crea los movimientos e invalida `movementsProvider`. Maneja el 422 de PDF con contraseña pidiéndola y reintentando.
+- Tests: `statement_test` (4). Total 113, `flutter analyze` + `flutter test` en verde.
+- **Verificación end-to-end pendiente:** igual que recibos, la extracción usa IA; el contrato con `StatementPreviewResponse`/`ImportConfirmRow` ya está alineado.
