@@ -12,7 +12,13 @@ class AppConfig {
     defaultValue: 'http://10.0.2.2:8080',
   );
 
-  /// Tope de espera de una request. Sin esto, con el backend caído la app se
-  /// queda colgada indefinidamente.
+  /// Tope de espera de una request normal. Sin esto, con el backend caído la
+  /// app se queda colgada indefinidamente.
   static const Duration requestTimeout = Duration(seconds: 15);
+
+  /// Tope de espera para operaciones que pasan por un proveedor de IA (chat,
+  /// escaneo de recibos, generación de insight, extracción de extractos): la
+  /// primera llamada en frío ronda los 15-20 s y el backend reintenta en
+  /// cascada entre proveedores.
+  static const Duration aiRequestTimeout = Duration(seconds: 90);
 }

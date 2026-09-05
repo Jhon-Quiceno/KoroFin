@@ -628,7 +628,13 @@ Registro de lo entregado, fase por fase. Cada fase vive en su propia rama
 
 **Backend Docker local verificado end-to-end** para: auth, categorías, gastos/ingresos, análisis, reportes, deudas (+abonos/cargos), tarjetas (+cuotas), pagos recurrentes (+toggle/pay), notificaciones (+preferencias), preferencias de usuario y perfil.
 
-**Pendiente de probar con datos reales:** todo lo que pasa por un proveedor de IA — chat del asistente, `POST /api/receipts/scan` y `POST /api/statement-imports/preview`. Las keys del `.env` local no responden; los contratos de request/response ya están alineados con los DTOs del backend y la app maneja timeout/error.
+**IA verificada (2026-09-05, tras subir bien las keys al contenedor):**
+- `POST /api/ai/chat` → **funciona**, ~16 s en frío con Gemini real.
+- `POST /api/ai/categorize` → **funciona**, instantáneo.
+- `POST /api/ai/insights/generate` → el backend corta a los 60 s (`AI_READ_TIMEOUT_SECONDS`) y devuelve 500 — comportamiento del backend con el prompt grande de insight, no del mobile.
+- `POST /api/receipts/scan` → 503 con imagen de prueba (modelos de visión más lentos / requiere foto real). La app muestra el mensaje del backend.
+
+**Fix aplicado (rama `fix/mobile-timeout-ia`):** el `ApiClient` tenía 15 s de timeout para todo, y una respuesta de IA de ~16 s se cortaba en la app. Ahora chat, categorización, insight, escaneo de recibos y `statement-imports/preview` usan `AppConfig.aiRequestTimeout` (90 s); el resto sigue en 15 s. Las llamadas de IA que responden rápido (chat, categorize) ya funcionan en la app; las lentas fallan con el mensaje del backend en vez de un timeout de cliente.
 
 **Fuera de este trabajo (decidido):** push FCM (el backend usa `ExpoPushAdapter`; hace falta un `FcmPushAdapter`), OAuth de Google, y el botón de exportar reporte a CSV/JSON (necesita `share_plus`/`path_provider`).
 
