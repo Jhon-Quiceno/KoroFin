@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../models/category.dart';
 import '../models/chat_message.dart';
-import '../models/credit_card.dart';
 import '../models/notification_item.dart';
 import '../models/subscription.dart';
 import '../models/transaction.dart';
@@ -115,32 +114,7 @@ class MockData {
   static double get totalBalance => 8450300;
 
 
-  static final List<AppCreditCard> creditCards = <AppCreditCard>[
-    AppCreditCard(
-      id: 'c1',
-      name: 'Visa Signature',
-      bank: 'Bancolombia',
-      totalLimit: 8000000,
-      usedAmount: 2350000,
-      closingDay: 28,
-      lastFourDigits: '4821',
-    ),
-    AppCreditCard(
-      id: 'c2',
-      name: 'Mastercard Black',
-      bank: 'Davivienda',
-      totalLimit: 5000000,
-      usedAmount: 4100000,
-      closingDay: 5,
-      lastFourDigits: '7734',
-    ),
-  ];
 
-  static final List<CardMovement> cardMovements = <CardMovement>[
-    CardMovement(description: 'Amazon', amount: 245000, date: _now.subtract(const Duration(days: 2)), type: CardMovementType.purchase),
-    CardMovement(description: 'Pago mínimo', amount: 500000, date: _now.subtract(const Duration(days: 10)), type: CardMovementType.payment),
-    CardMovement(description: 'Restaurante La Puerta', amount: 138000, date: _now.subtract(const Duration(days: 12)), type: CardMovementType.purchase),
-  ];
 
   static final List<Subscription> subscriptions = <Subscription>[
     Subscription(id: 's1', name: 'Netflix', icon: Icons.tv_outlined, color: const Color(0xFFE50914), amount: 44900, nextChargeDate: _now.add(const Duration(days: 2))),
