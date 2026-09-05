@@ -578,3 +578,12 @@ Registro de lo entregado, fase por fase. Cada fase vive en su propia rama
 - **Push token (FCM) sigue diferido** — el backend espera un token de Expo; hace falta un `FcmPushAdapter` en el backend.
 - Tests: `notification_test` (4), `notifications_controller_test` (3). Total 88, `flutter analyze` + `flutter test` en verde.
 - **Contrato verificado contra el backend local:** `unread-count` devuelve un número plano; `preferences` trae las 6 flags con defaults.
+
+### Fase 9 — Preferencias y perfil ✅ (rama `feat/mobile-fase-9-preferencias`)
+
+- Modelo `UserPreferences` + enums `ThemePreference` (mapea a `ThemeMode`) / `AppLanguage` + lista `supportedCurrencies`.
+- `UserRepository` (`/api/users/preferences` GET+PATCH, `/profile` PUT, `/password` PUT). `userPreferencesProvider` (`AsyncNotifier`): carga y sincroniza `ThemeController` con el tema guardado; `setTheme`/`setCurrency`/`setLanguage` hacen el PATCH completo (el backend exige los tres).
+- `AuthController`: aplica el tema del usuario al iniciar sesión / bootstrap, y `applyUser()` refresca el estado tras editar el perfil.
+- `settings_screen` reescrita: perfil tocable → sheet de edición (nombre + email), "Cambiar contraseña" → sheet (actual + nueva), sección Preferencias (tema + moneda + idioma), sección Notificaciones (Fase 8). Se quitó la entrada "Integración Telegram" (fuera de alcance).
+- Tests: `user_preferences_test` (6), `preferences_controller_test` (3). Total 96, `flutter analyze` + `flutter test` en verde.
+- **Contrato verificado contra el backend local:** `PATCH /preferences` devuelve las 3; `PUT /profile` devuelve el `User` completo; contraseña actual incorrecta → 401.
