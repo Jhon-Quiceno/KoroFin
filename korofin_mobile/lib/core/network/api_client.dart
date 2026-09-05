@@ -82,6 +82,11 @@ class ApiClient {
   Future<Response<dynamic>> post(String path, {Object? body}) =>
       _send(() => _dio.post<dynamic>(path, data: body));
 
+  /// Igual que [post] pero para `multipart/form-data` (Dio pone el header y el
+  /// boundary a partir del [FormData]). Pasa por el mismo mapeo de errores.
+  Future<Response<dynamic>> postForm(String path, FormData form) =>
+      _send(() => _dio.post<dynamic>(path, data: form));
+
   Future<Response<dynamic>> put(String path, {Object? body}) =>
       _send(() => _dio.put<dynamic>(path, data: body));
 
