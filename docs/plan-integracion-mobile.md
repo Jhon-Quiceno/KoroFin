@@ -495,5 +495,16 @@ Registro de lo entregado, fase por fase. Cada fase vive en su propia rama
 - `lib/models/page_response.dart` — `PageResponse<T>` genérico para los `Page<>` de Spring.
 - `lib/core/providers.dart` — `accessTokenProvider`, `sessionStoreProvider`, `apiClientProvider`.
 - `main.dart` envuelto en `ProviderScope`.
-- Tests: `test/core/api_client_test.dart` (8) + `test/models/page_response_test.dart` (2). `flutter analyze` y `flutter test` en verde.
+- Tests: `test/core/api_client_test.dart` (7) + `test/models/page_response_test.dart` (2). `flutter analyze` y `flutter test` en verde.
 - **Backend local verificado:** `docker compose up -d db app` → `/actuator/health` UP, `POST /api/users/register` y `/login` devuelven el `AuthResponse` real.
+
+### Fase 1 — Autenticación real ✅ (rama `feat/mobile-fase-1-auth`)
+
+- Modelos: `lib/models/user.dart`, `lib/models/auth_session.dart` (parsean el `AuthResponse` real).
+- `lib/data/repositories/auth_repository.dart` — register / login / refresh / logout contra `/api/users/*`. `login` siempre manda `rememberMe: true`.
+- `lib/state/auth/` — `AuthState` (`unknown` / `authenticated` / `unauthenticated`) y `AuthController` (`Notifier`): bootstrap al abrir (refresh silencioso si hay token guardado), `login`/`register`/`logout`, y cableado de `apiClient.onRefresh` / `onSessionExpired`. Expone `ready` para tests.
+- `lib/routes/app_router.dart` — ahora `goRouterProvider`; `redirect` por estado de sesión (sin sesión → `/login`; con sesión en `/login`/`/register` → `/home`) y `refreshListenable` puenteado desde Riverpod.
+- `main.dart` — `ConsumerWidget`; mientras `AuthStatus.unknown` muestra `SplashScreen`, después monta el router.
+- Pantallas cableadas: `login_screen` y `register_screen` (formularios reales, validación, estados de carga/error; se quitó "Continuar con Google" y el atajo de biometría, sin backend); `settings_screen` → "Cerrar sesión" real.
+- Tests nuevos: `auth_session_test`, `auth_repository_test` (4), `auth_controller_test` (5), `widget_test` reescrito. Total 20, `flutter analyze` + `flutter test` en verde.
+- **Pendiente de probar en dispositivo:** login/registro/logout contra el backend local y persistencia de sesión tras cerrar la app.
