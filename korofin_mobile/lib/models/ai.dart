@@ -95,6 +95,36 @@ class CategorySuggestion {
       );
 }
 
+/// Resultado de escanear un recibo: `POST /api/receipts/scan`.
+/// `isReceipt` es `false` cuando la imagen no parece un recibo (no es error).
+class ReceiptExtraction {
+  const ReceiptExtraction({
+    required this.isReceipt,
+    this.description,
+    this.amount,
+    this.isIncome = false,
+    this.categoryId,
+    this.categoryName,
+  });
+
+  final bool isReceipt;
+  final String? description;
+  final double? amount;
+  final bool isIncome;
+  final int? categoryId;
+  final String? categoryName;
+
+  factory ReceiptExtraction.fromJson(Map<String, dynamic> json) =>
+      ReceiptExtraction(
+        isReceipt: json['isReceipt'] as bool? ?? false,
+        description: json['description'] as String?,
+        amount: (json['amount'] as num?)?.toDouble(),
+        isIncome: (json['movementType'] as String?) == 'INCOME',
+        categoryId: (json['categoryId'] as num?)?.toInt(),
+        categoryName: json['categoryName'] as String?,
+      );
+}
+
 /// Estado de un proveedor de IA: `GET /api/ai/providers/status`.
 class AiProviderStatus {
   const AiProviderStatus({

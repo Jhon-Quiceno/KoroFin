@@ -596,3 +596,11 @@ Registro de lo entregado, fase por fase. Cada fase vive en su propia rama
 - `assistant_screen` reescrita: chat real, indicador de cuota en el subtítulo, banner "no hay proveedor configurado" que deshabilita el composer, burbuja de "escribiendo". Dashboard: tarjeta de **insight de la IA** cuando existe. `transaction_form_sheet`: botón **"Sugerir con IA"** (✨) que categoriza la descripción.
 - Tests: `ai_test` (6), `ai_controller_test` (4). Total 106, `flutter analyze` + `flutter test` en verde.
 - **Contrato verificado contra el backend local:** `providers/status` lista los 5 proveedores; `chat/usage` trae `used/limit/remaining`; `insights` → 204 sin datos. (El `.env` local tiene keys de proveedor; el chat real depende de que sean válidas.)
+
+### Fase 11 — Escaneo de recibos con cámara nativa ✅ (rama `feat/mobile-fase-11-recibos`)
+
+- Dependencia nueva: `image_picker`.
+- Modelo `ReceiptExtraction` en `ai.dart` (`isReceipt`, `description`, `amount`, `isIncome`, `categoryId`, `categoryName`). `AiRepository.scanReceipt(imageDataUri)` → `POST /api/receipts/scan`.
+- `receipt_scan_screen` reescrita: cámara / galería con `image_picker` → bytes → data URI base64 → `scanReceipt`. Estados capture / loading / notReceipt / result. El resultado es un formulario editable (tipo, monto, descripción, categoría real) que al confirmar crea el movimiento vía `movementsProvider`.
+- Tests: `receipt_scan_test` (3). Total 109, `flutter analyze` + `flutter test` en verde.
+- **Verificación end-to-end pendiente:** el escaneo real depende de un proveedor de IA de visión con key válida; el contrato de request/response ya está alineado con el `ReceiptExtraction` del backend. La app maneja `isReceipt=false` y el timeout de red.
