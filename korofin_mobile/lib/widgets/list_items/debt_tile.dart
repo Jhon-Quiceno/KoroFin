@@ -5,8 +5,8 @@ import '../../models/debt.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 
-/// Debt row with a paid/remaining progress bar, tappable to open the
-/// detail screen with payment history.
+/// Fila de una deuda con barra de progreso pagado/restante, tocable para abrir
+/// el detalle.
 class DebtTile extends StatelessWidget {
   const DebtTile({super.key, required this.debt, required this.onTap});
 
@@ -31,12 +31,21 @@ class DebtTile extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(debt.name, style: Theme.of(context).textTheme.titleMedium),
-                        Text(debt.lender, style: Theme.of(context).textTheme.bodyMedium),
+                        Text(debt.name,
+                            style: Theme.of(context).textTheme.titleMedium),
+                        Text(
+                          debt.dueDate != null
+                              ? 'Vence ${AppFormatters.shortDate(debt.dueDate!)}'
+                              : (debt.interestRate != null
+                                  ? 'Interés ${debt.interestRate!.toStringAsFixed(1)}%'
+                                  : 'Sin fecha de vencimiento'),
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
                       ],
                     ),
                   ),
-                  Icon(Icons.chevron_right_rounded, color: koro.mutedForeground),
+                  Icon(Icons.chevron_right_rounded,
+                      color: koro.mutedForeground),
                 ],
               ),
               const SizedBox(height: AppSpacing.md),
@@ -52,8 +61,10 @@ class DebtTile extends StatelessWidget {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Pagado ${AppFormatters.currency(debt.paidAmount)}', style: Theme.of(context).textTheme.bodyMedium),
-                  Text('Resta ${AppFormatters.currency(debt.remainingAmount)}', style: Theme.of(context).textTheme.bodyMedium),
+                  Text('Pagado ${AppFormatters.currency(debt.paidAmount)}',
+                      style: Theme.of(context).textTheme.bodyMedium),
+                  Text('Resta ${AppFormatters.currency(debt.remainingAmount)}',
+                      style: Theme.of(context).textTheme.bodyMedium),
                 ],
               ),
             ],

@@ -544,3 +544,11 @@ Registro de lo entregado, fase por fase. Cada fase vive en su propia rama
 - **Fuera de esta fase:** botón de exportar CSV/JSON (necesita `share_plus`/`path_provider`) — se hará en la limpieza.
 - Tests: `analysis_report_test` (3), `analysis_report_repositories_test` (6), `dashboard_controller_test` (3). Total 57, `flutter analyze` + `flutter test` en verde.
 - **Contrato verificado contra el backend local:** `monthlySeries` siempre trae 6 meses; `prediction`/`recommendations` funcionan sin datos.
+
+### Fase 5 — Deudas ✅ (rama `feat/mobile-fase-5-deudas`)
+
+- Modelo `Debt` (backend-shaped: `totalAmount`/`remainingAmount`, `paidAmount`/`progress` derivados) + `DebtPayment` + `DebtCharge`. Se eliminó la lista `debts` mock de `mock_data.dart`.
+- `DebtRepository` (`/api/debts` CRUD + `/payments` + `/charges`; `addPayment` → `DebtPayment`, `addCharge` → `Debt` actualizada). `debtsProvider` (`AsyncNotifier`, sin paginación en UI) + `debtDetailProvider(id)` (`FutureProvider.family` → deuda + abonos + cargos).
+- `debts_tab` reescrita (carga/error/vacío, FAB, pull-to-refresh). `debt_detail_screen` reescrita: recarga del backend, resumen, progreso, historial combinado abonos/cargos ordenado, acciones "Abono"/"Cargo" (diálogo de monto), editar y borrar. `new_debt_sheet` devuelve datos; en edición oculta el monto total (inmutable). `debt_tile` sin `lender`.
+- Tests: `debt_test` (7), `debts_controller_test` (3). Total 66, `flutter analyze` + `flutter test` en verde.
+- **Contrato verificado contra el backend local:** abono baja el saldo y crea un `Expense` vinculado (`expenseId`); cargo devuelve la deuda con el saldo ya actualizado.
