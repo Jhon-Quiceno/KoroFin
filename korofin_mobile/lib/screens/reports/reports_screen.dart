@@ -1,83 +1,232 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:intl/intl.dart';
 
+import '../../core/network/api_exception.dart';
 import '../../data/formatters.dart';
-import '../../data/mock_data.dart';
+import '../../models/analysis.dart';
+import '../../models/report.dart';
+import '../../state/reports/report_controller.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_spacing.dart';
 import '../../widgets/cards/kpi_card.dart';
 import '../../widgets/cards/section_card.dart';
 import '../../widgets/charts/trend_line_chart.dart';
-import '../../widgets/list_items/transaction_tile.dart';
 
-enum _Period { month, quarter, year }
-
-/// Screen 12 — Reportes/Análisis: period selector, KPI cards, 6-month
-/// trend chart and the period's movement table.
-class ReportsScreen extends StatefulWidget {
+/// Pantalla 12 — Reportes: selector de mes, KPIs, tendencia de ahorro de 6
+/// meses y la tabla de movimientos del período.
+class ReportsScreen extends ConsumerWidget {
   const ReportsScreen({super.key});
 
   @override
-  State<ReportsScreen> createState() => _ReportsScreenState();
-}
+  Widget build(BuildContext context, WidgetRef ref) {
+    final DateTime month = ref.watch(selectedReportMonthProvider);
+    final AsyncValue<ReportData> report = ref.watch(reportProvider);
+    final AsyncValue<List<MonthlyTotal>> trend = ref.watch(reportTrendProvider);
 
-class _ReportsScreenState extends State<ReportsScreen> {
-  _Period _period = _Period.month;
+    void shift(int months) {
+      ref.read(selectedReportMonthProvider.notifier).state =
+          DateTime(month.year, month.month + months);
+    }
 
-  @override
-  Widget build(BuildContext context) {
-    final income = MockData.totalIncome;
-    final expense = MockData.totalExpense;
-    final savings = income - expense;
+    final bool isCurrentOrFuture = !month.isBefore(
+      DateTime(DateTime.now().year, DateTime.now().month),
+    );
 
     return Scaffold(
       appBar: AppBar(title: const Text('Reportes')),
-      body: ListView(
-        padding: const EdgeInsets.all(AppSpacing.lg),
-        children: [
-          SegmentedButton<_Period>(
-            segments: const [
-              ButtonSegment(value: _Period.month, label: Text('Mes')),
-              ButtonSegment(value: _Period.quarter, label: Text('Trimestre')),
-              ButtonSegment(value: _Period.year, label: Text('Año')),
-            ],
-            selected: {_period},
-            onSelectionChanged: (s) => setState(() => _period = s.first),
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          GridView.count(
-            crossAxisCount: 2,
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            mainAxisSpacing: AppSpacing.md,
-            crossAxisSpacing: AppSpacing.md,
-            childAspectRatio: 1.5,
-            children: [
-              KpiCard(label: 'Ingresos', value: AppFormatters.currency(income), icon: Icons.arrow_downward_rounded, color: AppColors.success),
-              KpiCard(label: 'Gastos', value: AppFormatters.currency(expense), icon: Icons.arrow_upward_rounded, color: AppColors.accent),
-              KpiCard(
-                label: 'Ahorro',
-                value: AppFormatters.currency(savings),
-                icon: Icons.savings_outlined,
-                color: AppColors.info,
-                trend: savings >= 0 ? 'Positivo' : 'Negativo',
+      body: report.when(
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (error, _) => _ErrorView(
+          message: error is ApiException
+              ? error.message
+              : 'No se pudo cargar el reporte.',
+          onRetry: () => ref.invalidate(reportProvider),
+        ),
+        data: (data) => ListView(
+          padding: const EdgeInsets.all(AppSpacing.lg),
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                IconButton(
+                  onPressed: () => shift(-1),
+                  icon: const Icon(Icons.chevron_left),
+                ),
+                Text(
+                  toBeginningOfSentenceCase(
+                        DateFormat('MMMM y', 'es_CO').format(month),
+                      ) ??
+                      '',
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+                IconButton(
+                  onPressed: isCurrentOrFuture ? null : () => shift(1),
+                  icon: const Icon(Icons.chevron_right),
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.md),
+            GridView.count(
+              crossAxisCount: 2,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: AppSpacing.md,
+              crossAxisSpacing: AppSpacing.md,
+              childAspectRatio: 1.5,
+              children: [
+                KpiCard(
+                  label: 'Ingresos',
+                  value: AppFormatters.currency(data.monthly.totalIncome),
+                  icon: Icons.arrow_downward_rounded,
+                  color: AppColors.success,
+                ),
+                KpiCard(
+                  label: 'Gastos',
+                  value: AppFormatters.currency(data.monthly.totalExpense),
+                  icon: Icons.arrow_upward_rounded,
+                  color: AppColors.accent,
+                ),
+                KpiCard(
+                  label: 'Ahorro',
+                  value: AppFormatters.currency(data.monthly.totalSavings),
+                  icon: Icons.savings_outlined,
+                  color: AppColors.info,
+                  trend: data.monthly.totalSavings >= 0 ? 'Positivo' : 'Negativo',
+                ),
+                KpiCard(
+                  label: 'Tasa de ahorro',
+                  value: '${data.monthly.savingsRate.toStringAsFixed(1)}%',
+                  icon: Icons.trending_up_rounded,
+                  color: AppColors.warning,
+                ),
+              ],
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            SectionCard(
+              title: 'Ahorro (últimos 6 meses)',
+              child: trend.maybeWhen(
+                data: (series) => TrendLineChart(
+                  months: [
+                    for (final m in series)
+                      toBeginningOfSentenceCase(
+                            DateFormat('MMM', 'es_CO')
+                                .format(DateTime(2020, m.month)),
+                          ) ??
+                          '',
+                  ],
+                  values: [for (final m in series) m.savings],
+                ),
+                orElse: () => const SizedBox(
+                  height: 120,
+                  child: Center(child: CircularProgressIndicator()),
+                ),
               ),
-              const KpiCard(label: 'Tasa de ahorro', value: '14.8%', icon: Icons.trending_up_rounded, color: AppColors.warning),
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            if (data.monthly.topExpenseCategories.isNotEmpty) ...[
+              SectionCard(
+                title: 'Gasto por categoría',
+                child: Column(
+                  children: [
+                    for (final CategoryTotal c
+                        in data.monthly.topExpenseCategories)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            vertical: AppSpacing.xs),
+                        child: Row(
+                          children: [
+                            Expanded(child: Text(c.categoryName)),
+                            Text(AppFormatters.currency(c.total),
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w600)),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppSpacing.lg),
             ],
-          ),
-          const SizedBox(height: AppSpacing.lg),
-          SectionCard(
-            title: 'Tendencia (últimos 6 meses)',
-            child: TrendLineChart(
-              months: const ['Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago'],
-              values: const [900000, 1150000, 700000, 750000, 800000, 1337400],
+            Text('Movimientos del período',
+                style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: AppSpacing.sm),
+            if (data.movements.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: AppSpacing.lg),
+                child: Text('Sin movimientos en este mes.'),
+              )
+            else
+              for (final ReportMovement m in data.movements)
+                _ReportMovementRow(movement: m),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ReportMovementRow extends StatelessWidget {
+  const _ReportMovementRow({required this.movement});
+
+  final ReportMovement movement;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(movement.description?.isNotEmpty == true
+                    ? movement.description!
+                    : movement.categoryName),
+                Text(
+                  '${movement.categoryName} · '
+                  '${AppFormatters.shortDate(movement.date)}',
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: AppSpacing.lg),
-          Text('Movimientos del periodo', style: Theme.of(context).textTheme.titleMedium),
-          const SizedBox(height: AppSpacing.sm),
-          for (final t in MockData.transactions) TransactionTile(transaction: t),
+          Text(
+            '${movement.isIncome ? '+' : '-'}'
+            '${AppFormatters.currency(movement.amount)}',
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
+              color: movement.isIncome
+                  ? AppColors.success
+                  : Theme.of(context).colorScheme.onSurface,
+            ),
+          ),
         ],
       ),
     );
   }
+}
+
+class _ErrorView extends StatelessWidget {
+  const _ErrorView({required this.message, required this.onRetry});
+
+  final String message;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(AppSpacing.xl),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(message, textAlign: TextAlign.center),
+              const SizedBox(height: AppSpacing.lg),
+              FilledButton.tonal(
+                  onPressed: onRetry, child: const Text('Reintentar')),
+            ],
+          ),
+        ),
+      );
 }

@@ -532,3 +532,15 @@ Registro de lo entregado, fase por fase. Cada fase vive en su propia rama
 - **Fuera de esta fase:** UI de filtros por categoría/fecha (el repo ya los soporta); el dashboard sigue con `MockData`.
 - Tests: `movement_test` (4), `movement_repositories_test` (7), `movements_controller_test` (4). Total 46, `flutter analyze` + `flutter test` en verde.
 - **Contrato verificado contra el backend local:** `POST /api/expenses` con `categoryId` devuelve `categoryName` resuelto; `GET` pagina con la forma `Page` estándar; ingreso sin categoría → `categoryId/categoryName` null.
+
+### Fase 4 — Dashboard, reportes y análisis ✅ (rama `feat/mobile-fase-4-dashboard`)
+
+- Modelos `AnalysisSummary` / `CategoryTotal` / `MonthlyTotal` / `Recommendation` / `MonthEndPrediction` (`analysis.dart`), `MonthlyReport` / `ReportMovement` (`report.dart`).
+- `AnalysisRepository` (`/api/analysis/summary|recommendations|prediction`) y `ReportRepository` (`/api/reports/monthly|movements`).
+- `dashboardProvider` (`AsyncNotifier`): carga `summary` (imprescindible) + `recommendations` + `prediction` en paralelo; las dos últimas degradan a `[]`/`null` si fallan.
+- `reportProvider` (`FutureProvider`) + `selectedReportMonthProvider` (`StateProvider<DateTime>`) + `reportTrendProvider` (serie de 6 meses del resumen).
+- `dashboard_screen` reescrita: saludo con el nombre real del usuario, `BalanceCard`/bar chart/donut desde el resumen, tarjeta de proyección de fin de mes y de recomendaciones, tasa de ahorro. `reports_screen` reescrita: selector de mes (‹ ›, tope en el mes en curso), KPIs, tendencia de ahorro, gasto por categoría y tabla de movimientos del período.
+- Los gráficos (`CategoryDonutChart`, `IncomeExpenseBarChart`, `TrendLineChart`) se reusan sin tocar; el donut recibe `AppCategory` sintetizados con `CategoryVisuals` desde `categoryName`.
+- **Fuera de esta fase:** botón de exportar CSV/JSON (necesita `share_plus`/`path_provider`) — se hará en la limpieza.
+- Tests: `analysis_report_test` (3), `analysis_report_repositories_test` (6), `dashboard_controller_test` (3). Total 57, `flutter analyze` + `flutter test` en verde.
+- **Contrato verificado contra el backend local:** `monthlySeries` siempre trae 6 meses; `prediction`/`recommendations` funcionan sin datos.
