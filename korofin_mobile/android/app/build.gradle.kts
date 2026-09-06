@@ -6,7 +6,10 @@ plugins {
 
 android {
     namespace = "com.korofin.korofin_mobile"
-    compileSdk = flutter.compileSdkVersion
+    // Algunos plugins (file_picker, image_picker vía flutter_plugin_android_lifecycle)
+    // exigen compilar contra el API 36+. Se fija a mano porque el default de esta
+    // version de Flutter todavia resuelve a 34.
+    compileSdk = 36
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

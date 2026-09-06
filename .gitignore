@@ -3,9 +3,19 @@
 *.iml
 .vscode/
 
+# CodeGraph index (local cache, se regenera)
+.codegraph/
+
+# Cache local de registro de skills
+.atl/
+
 # OS
 .DS_Store
 Thumbs.db
+
+# Python cache (scripts dentro de skills de Claude)
+__pycache__/
+*.pyc
 
 # Environment files (never commit secrets)
 .env
