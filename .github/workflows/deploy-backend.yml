@@ -1,25 +1,18 @@
 name: Deploy Backend
 
 on:
-  # Parqueado: todavia no existe el proyecto de Google Cloud / Cloud Run ni los
-  # secrets del repo (GCP_PROJECT_ID, GCP_WORKLOAD_IDENTITY_PROVIDER,
-  # GCP_SERVICE_ACCOUNT, SPRING_DATASOURCE_*, JWT_SECRET, ...), asi que el deploy
-  # automatico solo fallaba en el paso de auth. Mientras tanto se puede lanzar a
-  # mano desde la pestana Actions. Para reactivar el deploy automatico,
-  # descomentar los triggers push / pull_request de abajo una vez configurado GCP.
-  workflow_dispatch:
-  # push:
-  #   branches:
-  #     - main
-  #   paths:
-  #     - "korofin-backend/**"
-  #     - ".github/workflows/deploy-backend.yml"
-  # pull_request:
-  #   branches:
-  #     - main
-  #   paths:
-  #     - "korofin-backend/**"
-  #     - ".github/workflows/deploy-backend.yml"
+  push:
+    branches:
+      - main
+    paths:
+      - "korofin-backend/**"
+      - ".github/workflows/deploy-backend.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "korofin-backend/**"
+      - ".github/workflows/deploy-backend.yml"
 
 permissions:
   contents: read
