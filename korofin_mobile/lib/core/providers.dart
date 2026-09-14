@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'auth/biometric_authenticator.dart';
 import 'network/api_client.dart';
+import 'storage/lock_store.dart';
 import 'storage/session_store.dart';
 
 /// Sostiene el access token en memoria durante la vida del proceso. La capa de
@@ -11,6 +13,18 @@ final accessTokenProvider = StateProvider<String?>((ref) => null);
 /// [InMemorySessionStore].
 final sessionStoreProvider = Provider<SessionStore>(
   (ref) => SecureSessionStore(),
+);
+
+/// Almacenamiento seguro del bloqueo de la app (habilitado + PIN hasheado).
+/// Se sobreescribe en tests con [InMemoryLockStore].
+final lockStoreProvider = Provider<LockStore>(
+  (ref) => SecureLockStore(),
+);
+
+/// Autenticación biométrica del dispositivo. Se sobreescribe en tests con un
+/// fake que no depende del plugin nativo.
+final biometricAuthenticatorProvider = Provider<BiometricAuthenticator>(
+  (ref) => DeviceBiometricAuthenticator(),
 );
 
 /// Cliente HTTP único de la app. Lee el access token del [accessTokenProvider]

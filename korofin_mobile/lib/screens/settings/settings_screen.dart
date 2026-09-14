@@ -5,6 +5,7 @@ import '../../core/network/api_exception.dart';
 import '../../models/notification.dart';
 import '../../models/user_preferences.dart';
 import '../../state/auth/auth_controller.dart';
+import '../../state/lock/lock_controller.dart';
 import '../../state/notifications/notifications_controller.dart';
 import '../../state/preferences/preferences_controller.dart';
 import '../../theme/app_spacing.dart';
@@ -131,6 +132,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               label: 'Cambiar contraseña',
               onTap: _changePassword,
             ),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          const SectionCard(
+            title: 'Seguridad',
+            child: _SecuritySection(),
           ),
           const SizedBox(height: AppSpacing.lg),
           const SectionCard(
@@ -301,6 +307,120 @@ class _NotificationPreferencesSection extends ConsumerWidget {
         value: value,
         onChanged: onChanged,
       );
+}
+
+class _SecuritySection extends ConsumerWidget {
+  const _SecuritySection();
+
+  Future<void> _toggle(BuildContext context, WidgetRef ref, bool value) async {
+    final notifier = ref.read(lockControllerProvider.notifier);
+    if (value) {
+      final String? pin = await showModalBottomSheet<String>(
+        context: context,
+        isScrollControlled: true,
+        showDragHandle: true,
+        builder: (_) => const _SetPinSheet(),
+      );
+      if (pin == null) return; // el usuario canceló: el switch se queda apagado.
+      await notifier.enableWithPin(pin);
+    } else {
+      await notifier.disable();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final lockState = ref.watch(lockControllerProvider);
+    return SwitchListTile.adaptive(
+      contentPadding: EdgeInsets.zero,
+      title: const Text('Bloqueo de la app'),
+      subtitle: const Text(
+          'Pide Face ID/huella o tu PIN al volver a abrir KoroFin.'),
+      value: lockState.enabled,
+      onChanged: (value) => _toggle(context, ref, value),
+    );
+  }
+}
+
+/// Bottom sheet para definir el PIN de 4 dígitos la primera vez que se activa
+/// el bloqueo. El PIN se hashea recién en [LockRepository]; acá solo se pide y
+/// se confirma.
+class _SetPinSheet extends StatefulWidget {
+  const _SetPinSheet();
+
+  @override
+  State<_SetPinSheet> createState() => _SetPinSheetState();
+}
+
+class _SetPinSheetState extends State<_SetPinSheet> {
+  final _pin = TextEditingController();
+  final _confirm = TextEditingController();
+  String? _error;
+
+  static final RegExp _fourDigits = RegExp(r'^\d{4}$');
+
+  @override
+  void dispose() {
+    _pin.dispose();
+    _confirm.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (!_fourDigits.hasMatch(_pin.text)) {
+      setState(() => _error = 'El PIN debe tener 4 dígitos numéricos.');
+      return;
+    }
+    if (_pin.text != _confirm.text) {
+      setState(() => _error = 'Los PIN no coinciden.');
+      return;
+    }
+    Navigator.of(context).pop(_pin.text);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(AppSpacing.lg, 0, AppSpacing.lg,
+            AppSpacing.lg + MediaQuery.of(context).viewInsets.bottom),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Definir PIN de desbloqueo',
+                style: Theme.of(context).textTheme.titleLarge),
+            const SizedBox(height: AppSpacing.lg),
+            TextField(
+              controller: _pin,
+              obscureText: true,
+              keyboardType: TextInputType.number,
+              maxLength: 4,
+              decoration:
+                  const InputDecoration(labelText: 'PIN (4 dígitos)', counterText: ''),
+            ),
+            const SizedBox(height: AppSpacing.md),
+            TextField(
+              controller: _confirm,
+              obscureText: true,
+              keyboardType: TextInputType.number,
+              maxLength: 4,
+              decoration: const InputDecoration(
+                  labelText: 'Confirmar PIN', counterText: ''),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: AppSpacing.md),
+              Text(_error!,
+                  style: TextStyle(
+                      color: Theme.of(context).colorScheme.error)),
+            ],
+            const SizedBox(height: AppSpacing.lg),
+            ElevatedButton(onPressed: _submit, child: const Text('Guardar')),
+          ],
+        ),
+      ),
+    );
+  }
 }
 
 class _SettingsTile extends StatelessWidget {
