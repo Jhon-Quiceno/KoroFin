@@ -17,11 +17,14 @@ Future<void> showQuickAddSheet(BuildContext context, WidgetRef ref) async {
   );
   if (result == null) return;
   try {
-    await ref.read(movementsProvider(result.type).notifier).add(result.draft);
+    final AddOutcome outcome =
+        await ref.read(movementsProvider(result.type).notifier).add(result.draft);
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Movimiento guardado')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(outcome == AddOutcome.queued
+            ? 'Sin conexión: se guardó en el dispositivo y se sincronizará automáticamente.'
+            : 'Movimiento guardado'),
+      ));
     }
   } on ApiException catch (e) {
     if (context.mounted) {

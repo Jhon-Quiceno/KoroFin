@@ -56,12 +56,23 @@ dependencies:
   # Seleccion de archivos de extractos bancarios (PDF/CSV/XLSX).
   file_picker: ^8.1.6
 
+  # Cola offline: persistencia local (sqflite) y deteccion de conectividad
+  # para reintentar altas de gasto/ingreso creadas sin conexion.
+  sqflite: ^2.4.1
+  path: ^1.9.1
+  connectivity_plus: ^6.1.3
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
 
   # Adaptador de mock para probar el cliente Dio sin red real.
   http_mock_adapter: ^0.6.1
+
+  # Implementacion FFI de sqflite: permite correr la cola offline contra una
+  # base SQLite real en `flutter test` (Dart VM), sin depender de un
+  # emulador/dispositivo con el plugin nativo.
+  sqflite_common_ffi: ^2.3.4
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
