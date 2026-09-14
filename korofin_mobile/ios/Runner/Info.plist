@@ -66,5 +66,7 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>NSFaceIDUsageDescription</key>
+	<string>KoroFin usa Face ID para desbloquear la aplicación y proteger tu información financiera.</string>
 </dict>
 </plist>
