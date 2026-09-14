@@ -32,6 +32,12 @@ abstract interface class OfflineQueueStore {
 
   /// Suma un intento fallido a la entrada, sin descartarla.
   Future<void> incrementAttempt(int id);
+
+  /// Libera los recursos del almacenamiento. Sin esto el archivo de la base
+  /// queda tomado por el proceso, algo que importa tanto en los tests (que
+  /// borran su archivo temporal al terminar) como en cualquier reinicio del
+  /// almacenamiento en caliente.
+  Future<void> close();
 }
 
 /// Implementación real sobre `sqflite`: sobrevive a que maten la app, algo
@@ -39,9 +45,9 @@ abstract interface class OfflineQueueStore {
 class SqfliteOfflineQueueStore implements OfflineQueueStore {
   /// [path] es inyectable para que los tests puedan apuntar a un archivo
   /// aislado (o `inMemoryDatabasePath`) en vez del path real del dispositivo.
-  SqfliteOfflineQueueStore({String? path}) : _path = path;
+  SqfliteOfflineQueueStore({this.path});
 
-  final String? _path;
+  final String? path;
   Database? _db;
 
   static const String _table = 'pending_movements';
@@ -51,7 +57,7 @@ class SqfliteOfflineQueueStore implements OfflineQueueStore {
     if (existing != null) return existing;
 
     final String dbPath =
-        _path ?? join(await getDatabasesPath(), 'korofin_offline_queue.db');
+        path ?? join(await getDatabasesPath(), 'korofin_offline_queue.db');
     final Database db = await openDatabase(
       dbPath,
       version: 1,
@@ -122,6 +128,12 @@ class SqfliteOfflineQueueStore implements OfflineQueueStore {
     );
   }
 
+  @override
+  Future<void> close() async {
+    await _db?.close();
+    _db = null;
+  }
+
   QueuedMovement _fromRow(Map<String, Object?> row) {
     final String? paymentMethodWire = row['payment_method'] as String?;
     return QueuedMovement(
@@ -183,5 +195,10 @@ class InMemoryOfflineQueueStore implements OfflineQueueStore {
     final int index = _rows.indexWhere((row) => row.id == id);
     if (index == -1) return;
     _rows[index] = _rows[index].withAttempt(_rows[index].attemptCount + 1);
+  }
+
+  @override
+  Future<void> close() async {
+    // No hay recursos externos que liberar: la cola vive en memoria.
   }
 }

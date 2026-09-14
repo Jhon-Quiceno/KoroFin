@@ -7,6 +7,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:korofin_mobile/core/storage/offline_queue_store.dart';
 import 'package:korofin_mobile/models/movement.dart';
+import 'package:korofin_mobile/models/queued_movement.dart';
 import 'package:path/path.dart' show join;
 import 'package:sqflite_common_ffi/sqflite_common_ffi.dart';
 
@@ -25,12 +26,28 @@ void main() {
     );
   });
 
+  final List<SqfliteOfflineQueueStore> openStores = <SqfliteOfflineQueueStore>[];
+
+  // Cada store abierto se registra acá para cerrarlo al terminar el test: en
+  // Windows el archivo de la base no se puede borrar mientras el proceso lo
+  // tenga tomado, y varios tests abren dos instancias sobre el mismo archivo.
+  SqfliteOfflineQueueStore openStore() {
+    final SqfliteOfflineQueueStore store =
+        SqfliteOfflineQueueStore(path: dbPath);
+    openStores.add(store);
+    return store;
+  }
+
   tearDown(() async {
+    for (final SqfliteOfflineQueueStore store in openStores) {
+      await store.close();
+    }
+    openStores.clear();
     final File file = File(dbPath);
     if (file.existsSync()) file.deleteSync();
   });
 
-  MovementDraft _draft({int? categoryId, PaymentMethod? paymentMethod}) =>
+  MovementDraft draftOf({int? categoryId, PaymentMethod? paymentMethod}) =>
       MovementDraft(
         amount: 15000,
         date: DateTime(2026, 9, 1),
@@ -40,17 +57,17 @@ void main() {
       );
 
   test('una entrada encolada sobrevive a recrear el store', () async {
-    final store = SqfliteOfflineQueueStore(path: dbPath);
+    final store = openStore();
     await store.enqueue(
       userId: 1,
       type: MovementType.expense,
-      draft: _draft(categoryId: 3, paymentMethod: PaymentMethod.cash),
+      draft: draftOf(categoryId: 3, paymentMethod: PaymentMethod.cash),
       createdAt: DateTime(2026, 9, 1, 10),
     );
 
     // Nueva instancia sobre el mismo archivo: simula que se mató el proceso y
     // se volvió a abrir la app.
-    final reopened = SqfliteOfflineQueueStore(path: dbPath);
+    final reopened = openStore();
     final List<QueuedMovement> pending = await reopened.pendingFor(1);
 
     expect(pending, hasLength(1));
@@ -61,17 +78,17 @@ void main() {
   });
 
   test('el scoping por userId aísla la cola entre usuarios', () async {
-    final store = SqfliteOfflineQueueStore(path: dbPath);
+    final store = openStore();
     await store.enqueue(
       userId: 1,
       type: MovementType.expense,
-      draft: _draft(),
+      draft: draftOf(),
       createdAt: DateTime(2026, 9, 1),
     );
     await store.enqueue(
       userId: 2,
       type: MovementType.income,
-      draft: _draft(),
+      draft: draftOf(),
       createdAt: DateTime(2026, 9, 1),
     );
 
@@ -89,11 +106,11 @@ void main() {
 
   test('un ingreso sin método de pago se reconstruye como null, no CASH',
       () async {
-    final store = SqfliteOfflineQueueStore(path: dbPath);
+    final store = openStore();
     await store.enqueue(
       userId: 1,
       type: MovementType.income,
-      draft: _draft(),
+      draft: draftOf(),
       createdAt: DateTime(2026, 9, 1),
     );
 
@@ -103,17 +120,17 @@ void main() {
   });
 
   test('pendingFor devuelve en orden FIFO (el más viejo primero)', () async {
-    final store = SqfliteOfflineQueueStore(path: dbPath);
+    final store = openStore();
     final int firstId = await store.enqueue(
       userId: 1,
       type: MovementType.expense,
-      draft: _draft(),
+      draft: draftOf(),
       createdAt: DateTime(2026, 9, 1),
     );
     final int secondId = await store.enqueue(
       userId: 1,
       type: MovementType.expense,
-      draft: _draft(),
+      draft: draftOf(),
       createdAt: DateTime(2026, 9, 2),
     );
 
@@ -123,11 +140,11 @@ void main() {
   });
 
   test('remove saca la entrada de la cola', () async {
-    final store = SqfliteOfflineQueueStore(path: dbPath);
+    final store = openStore();
     final int id = await store.enqueue(
       userId: 1,
       type: MovementType.expense,
-      draft: _draft(),
+      draft: draftOf(),
       createdAt: DateTime(2026, 9, 1),
     );
 
@@ -137,11 +154,11 @@ void main() {
   });
 
   test('incrementAttempt suma un intento sin descartar la entrada', () async {
-    final store = SqfliteOfflineQueueStore(path: dbPath);
+    final store = openStore();
     final int id = await store.enqueue(
       userId: 1,
       type: MovementType.expense,
-      draft: _draft(),
+      draft: draftOf(),
       createdAt: DateTime(2026, 9, 1),
     );
 

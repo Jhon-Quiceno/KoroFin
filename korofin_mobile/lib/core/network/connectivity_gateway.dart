@@ -35,23 +35,24 @@ class DeviceConnectivityGateway implements ConnectivityGateway {
 
 /// Implementación controlable a mano para tests y previews.
 class FakeConnectivityGateway implements ConnectivityGateway {
-  FakeConnectivityGateway({bool connected = true}) : _connected = connected;
+  FakeConnectivityGateway({this.connected = true});
 
-  bool _connected;
+  /// Estado actual simulado. Se lee directo en los tests para verificar que el
+  /// gateway quedó como el caso esperaba.
+  bool connected;
+
   final StreamController<bool> _controller =
       StreamController<bool>.broadcast();
 
-  bool get connected => _connected;
-
   @override
-  Future<bool> hasConnection() async => _connected;
+  Future<bool> hasConnection() async => connected;
 
   @override
   Stream<bool> get onConnectivityChanged => _controller.stream;
 
   /// Simula un cambio de conectividad, como dispararía el plugin real.
   void setConnected(bool value) {
-    _connected = value;
+    connected = value;
     _controller.add(value);
   }
 
