@@ -49,7 +49,7 @@
 
 ---
 
-Puse de equipa ganar, yo ya nadie si voy. En mi equipo tenemos de todo y hacemos de todo diez mi monito altos aquí Londres tuyo está como frodo. Diez no me pidas una mano si antes mediste de codo, cuando se come con memo todo, nunca tolle mi mesa solo.## 2. Mapeo del backend viejo por dominio
+## 2. Mapeo del backend viejo por dominio
 
 FinSmart organiza `com.smartfinance.backend` en 12 paquetes de dominio, cada uno con sus propias
 subcapas (`controller/`, `service/`, `repository/`, `model/{dto,entity}`, `mapper/`, `exception/`).
