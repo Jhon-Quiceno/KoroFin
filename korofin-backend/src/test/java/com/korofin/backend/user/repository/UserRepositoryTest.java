@@ -127,8 +127,10 @@ class UserRepositoryTest implements PostgresContainerSupport {
 
         List<Long> ids = userRepository.findAllIdsWithLastLoginNotNull();
 
+        // No se afirma sobre el tamaño total: la base es compartida entre tests y puede
+        // contener otros usuarios con lastLogin no nulo dejados por casos previos.
         assertThat(ids).contains(savedLoggedIn.getId());
-        assertThat(ids).hasSize(1);
+        assertThat(ids).doesNotContain(neverLoggedIn.getId());
     }
 
     private User newUser(String email) {

@@ -81,10 +81,13 @@ class RefreshTokenRepositoryTest implements PostgresContainerSupport {
         UUID tokenId = UUID.randomUUID();
         entityManager.persistAndFlush(newRefreshToken(user, tokenId, false));
 
+        // La operación tiene que pasar por el repositorio: el EntityManager de test no está
+        // envuelto por el traductor de excepciones de Spring Data, así que la violación de la
+        // base llega como ConstraintViolationException de Hibernate en vez de la de Spring.
         RefreshToken duplicate = newRefreshToken(user, tokenId, false);
         org.junit.jupiter.api.Assertions.assertThrows(
                 org.springframework.dao.DataIntegrityViolationException.class,
-                () -> entityManager.persistAndFlush(duplicate));
+                () -> refreshTokenRepository.saveAndFlush(duplicate));
     }
 
     private User persistUser(String email) {
