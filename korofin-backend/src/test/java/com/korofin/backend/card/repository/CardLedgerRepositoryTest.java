@@ -154,7 +154,11 @@ class CardLedgerRepositoryTest implements PostgresContainerSupport {
                 .findByPlan_Movement_Card_IdAndStatusAndDueDateLessThanEqual(
                         card.getId(), InstallmentStatus.PENDING, LocalDate.of(2026, 6, 15));
 
+        // Se compara con usingComparatorForType y no con containsExactlyInAnyOrder a secas porque
+        // BigDecimal.equals() tambien compara la escala: Postgres devuelve el NUMERIC con la escala
+        // declarada en la columna, asi que 4000 y 4000.00 son el mismo valor pero no son iguales.
         assertThat(due).extracting(Installment::getInterestAmount)
+                .usingComparatorForType(BigDecimal::compareTo, BigDecimal.class)
                 .containsExactlyInAnyOrder(new BigDecimal("4000.00"), new BigDecimal("1000.00"));
     }
 
@@ -178,9 +182,18 @@ class CardLedgerRepositoryTest implements PostgresContainerSupport {
         Expense savedExpense = expenseRepository.saveAndFlush(expense);
         assertThat(savedExpense.getCardMovement().getId()).isEqualTo(movement.getId());
 
-        cardMovementRepository.delete(movement);
+        // Hay que vaciar el contexto de persistencia ANTES de borrar el movimiento: si el Expense
+        // sigue gestionado apuntando al CardMovement que se está removiendo, Hibernate lo
+        // encuentra sucio durante el flush del borrado y lo rechaza como referencia a una
+        // instancia transitoria.
+        entityManager.clear();
+
+        CardMovement managedMovement = cardMovementRepository.findById(movement.getId()).orElseThrow();
+        cardMovementRepository.delete(managedMovement);
         cardMovementRepository.flush();
 
+        // El ON DELETE SET NULL lo aplica la base de datos, así que hay que vaciar el contexto de
+        // nuevo para que la relectura vuelva a la base y no al caché de primer nivel.
         entityManager.clear();
         Expense reloaded = expenseRepository.findById(savedExpense.getId()).orElseThrow();
         assertThat(reloaded.getCardMovement()).isNull();
