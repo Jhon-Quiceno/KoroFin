@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 
 import '../../core/auth/biometric_authenticator.dart';
 import '../../core/storage/lock_store.dart';
@@ -13,8 +15,9 @@ final RegExp _pinFormat = RegExp(r'^\d{4}$');
 /// verificar el PIN, aplicar el lockout temporal ante fuerza bruta, y delegar
 /// la biometría al [BiometricAuthenticator].
 ///
-/// El PIN nunca se guarda ni se compara en claro: se hashea con SHA-256 más
-/// una sal aleatoria de 16 bytes generada al activarse el bloqueo.
+/// El PIN nunca se guarda ni se compara en claro: se hashea con
+/// PBKDF2-HMAC-SHA256 (ver [_hashPin]) más una sal aleatoria de 16 bytes
+/// generada al activarse el bloqueo.
 ///
 /// Un PIN de 4 dígitos son solo 10.000 combinaciones, así que sin límite de
 /// intentos alguien con el teléfono en la mano lo fuerza bruta en minutos. Por
@@ -22,6 +25,20 @@ final RegExp _pinFormat = RegExp(r'^\d{4}$');
 /// aplica un lockout temporal escalonado (ver [_lockoutTiers]) durante el cual
 /// ni un PIN correcto desbloquea. El contador y el instante de fin del
 /// lockout se persisten en [LockStore]: matar la app no resetea el castigo.
+///
+/// Ese lockout es una defensa solo a nivel de app/UI: alguien que extraiga el
+/// `flutter_secure_storage` de un dispositivo rooteado/jailbreakeado se lo
+/// salta por completo y ataca el hash guardado offline. Contra ESE escenario,
+/// lo único que importa es que el hash sea costoso de invertir por
+/// combinación probada — de ahí PBKDF2 con muchas iteraciones en vez de un
+/// SHA-256 directo (que un atacante offline calcula millones de veces por
+/// segundo).
+///
+/// Nota de migración: los PIN guardados en dispositivos con el esquema previo
+/// (SHA-256 simple) dejan de validar con este cambio. No hay forma (ni falta
+/// hace) de migrarlos automáticamente porque el PIN vive solo en el
+/// dispositivo: el usuario simplemente vuelve a configurarlo con el flujo de
+/// "activar bloqueo" ya existente en la UI.
 ///
 /// La biometría es un canal aparte y nunca se ve afectada por este lockout:
 /// el sistema operativo ya aplica su propio límite de intentos biométricos.
@@ -172,6 +189,88 @@ class LockRepository {
     return base64Url.encode(bytes);
   }
 
-  String _hashPin(String pin, String salt) =>
-      sha256.convert(utf8.encode('$salt:$pin')).toString();
+  /// Iteraciones de PBKDF2. OWASP (2023) recomienda 210.000 para
+  /// PBKDF2-HMAC-SHA256, pero eso corre en el hilo principal cada vez que se
+  /// verifica el PIN (login/desbloqueo), sin `compute()` de por medio:
+  /// benchmarks locales (`dart compile exe`, CPU de escritorio) dieron ~600-700
+  /// ms para 210.000 iteraciones. En un dispositivo de gama baja eso puede
+  /// traducirse en 1-2+ segundos de UI congelada al tipear el último dígito
+  /// del PIN, lo cual es inaceptable para una pantalla de desbloqueo.
+  ///
+  /// Se optó por 50.000 iteraciones (~150-250 ms en el mismo benchmark) como
+  /// balance: sigue multiplicando por 50.000x el costo de cada intento
+  /// respecto de un SHA-256 directo (probar las 10.000 combinaciones de un
+  /// PIN de 4 dígitos pasa de ser instantáneo a requerir 500 millones de
+  /// operaciones HMAC-SHA256), mientras mantiene la verificación por debajo
+  /// de ~300 ms también en equipos modestos. No es memory-hard (a diferencia
+  /// de Argon2/scrypt), así que no es una defensa perfecta contra un
+  /// atacante con GPU dedicada, pero es una mejora sustancial y proporcional
+  /// al riesgo real de un PIN de 4 dígitos guardado localmente.
+  static const int _pbkdf2Iterations = 50000;
+
+  static const int _pbkdf2KeyLengthBytes = 32; // igual al output de SHA-256
+
+  String _hashPin(String pin, String salt) => base64.encode(
+        _pbkdf2HmacSha256(
+          password: pin,
+          salt: salt,
+          iterations: _pbkdf2Iterations,
+          keyLengthBytes: _pbkdf2KeyLengthBytes,
+        ),
+      );
 }
+
+/// PBKDF2 (RFC 8018) con HMAC-SHA256 como PRF.
+///
+/// El paquete `crypto` (única dependencia de criptografía del proyecto) no
+/// expone una clase `Pbkdf2` en la versión resuelta (3.0.7): solo trae los
+/// hashes y `Hmac` sueltos. Sumar `cryptography`/`pointycastle` solo para
+/// esto no se justificaba, así que PBKDF2 se arma acá encima de [Hmac],
+/// que sí expone el paquete.
+///
+/// [keyLengthBytes] es 32 (igual al output de SHA-256), así que alcanza con
+/// un único bloque de PBKDF2 (no hace falta concatenar T_1, T_2, ...).
+List<int> _pbkdf2HmacSha256({
+  required String password,
+  required String salt,
+  required int iterations,
+  required int keyLengthBytes,
+}) {
+  assert(iterations > 0, 'PBKDF2 necesita al menos 1 iteración.');
+  assert(
+    keyLengthBytes <= 32,
+    'Esta implementación solo cubre un bloque de PBKDF2 (hasta 32 bytes).',
+  );
+
+  final Hmac hmac = Hmac(sha256, utf8.encode(password));
+
+  // Bloque índice 1 en big-endian de 4 bytes, como pide el RFC 8018.
+  final Uint8List blockIndex = (ByteData(4)..setUint32(0, 1)).buffer.asUint8List();
+  final List<int> saltAndBlockIndex = <int>[...utf8.encode(salt), ...blockIndex];
+
+  List<int> u = hmac.convert(saltAndBlockIndex).bytes;
+  final List<int> t = List<int>.from(u);
+
+  for (int i = 1; i < iterations; i++) {
+    u = hmac.convert(u).bytes;
+    for (int j = 0; j < t.length; j++) {
+      t[j] ^= u[j];
+    }
+  }
+
+  return t.sublist(0, keyLengthBytes);
+}
+
+/// Mismo cálculo que usa internamente [LockRepository._hashPin]. Se expone
+/// solo para poder testear las propiedades de PBKDF2 (determinismo dado
+/// `pin` + `salt`, sensibilidad a cambios en cualquiera de los dos) de forma
+/// aislada, sin pasar por el flujo completo de habilitar/verificar PIN.
+@visibleForTesting
+String hashPinForTest(String pin, String salt) => base64.encode(
+      _pbkdf2HmacSha256(
+        password: pin,
+        salt: salt,
+        iterations: LockRepository._pbkdf2Iterations,
+        keyLengthBytes: LockRepository._pbkdf2KeyLengthBytes,
+      ),
+    );

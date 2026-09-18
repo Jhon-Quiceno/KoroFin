@@ -46,7 +46,7 @@ dependencies:
   flutter_riverpod: ^2.6.1
   flutter_secure_storage: ^9.2.4
 
-  # Bloqueo de la app: biometria del dispositivo y hash del PIN (SHA-256 + salt).
+  # Bloqueo de la app: biometria del dispositivo y hash del PIN (PBKDF2-HMAC-SHA256 + salt).
   local_auth: ^2.3.0
   crypto: ^3.0.6
 
