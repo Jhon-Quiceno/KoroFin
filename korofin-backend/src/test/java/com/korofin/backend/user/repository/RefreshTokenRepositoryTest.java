@@ -58,6 +58,36 @@ class RefreshTokenRepositoryTest implements PostgresContainerSupport {
     }
 
     @Test
+    void revokeAllActiveForFamilyOnlyTouchesActiveTokensOfThatFamily() {
+        User user = persistUser("family@korofin.dev");
+        UUID familyId = UUID.randomUUID();
+        UUID otherFamilyId = UUID.randomUUID();
+
+        RefreshToken active1 = newRefreshToken(user, UUID.randomUUID(), false);
+        active1.setFamilyId(familyId);
+        RefreshToken active2 = newRefreshToken(user, UUID.randomUUID(), false);
+        active2.setFamilyId(familyId);
+        RefreshToken alreadyRevoked = newRefreshToken(user, UUID.randomUUID(), false);
+        alreadyRevoked.setFamilyId(familyId);
+        alreadyRevoked.setRevokedAt(Instant.now().minusSeconds(60));
+        RefreshToken otherFamilyToken = newRefreshToken(user, UUID.randomUUID(), false);
+        otherFamilyToken.setFamilyId(otherFamilyId);
+
+        entityManager.persistAndFlush(active1);
+        entityManager.persistAndFlush(active2);
+        entityManager.persistAndFlush(alreadyRevoked);
+        entityManager.persistAndFlush(otherFamilyToken);
+
+        int revokedCount = refreshTokenRepository.revokeAllActiveForFamily(familyId, Instant.now());
+        entityManager.clear();
+
+        assertThat(revokedCount).isEqualTo(2);
+        assertThat(refreshTokenRepository.findById(active1.getId()).orElseThrow().getRevokedAt()).isNotNull();
+        assertThat(refreshTokenRepository.findById(active2.getId()).orElseThrow().getRevokedAt()).isNotNull();
+        assertThat(refreshTokenRepository.findById(otherFamilyToken.getId()).orElseThrow().getRevokedAt()).isNull();
+    }
+
+    @Test
     void deleteByExpiresAtBeforeRemovesOnlyExpiredTokens() {
         User user = persistUser("expired@korofin.dev");
         RefreshToken expired = newRefreshToken(user, UUID.randomUUID(), false);
@@ -102,6 +132,7 @@ class RefreshTokenRepositoryTest implements PostgresContainerSupport {
     private RefreshToken newRefreshToken(User user, UUID tokenId, boolean rememberMe) {
         RefreshToken refreshToken = new RefreshToken();
         refreshToken.setTokenId(tokenId);
+        refreshToken.setFamilyId(UUID.randomUUID());
         refreshToken.setUser(user);
         refreshToken.setTokenHash("hash-" + tokenId);
         refreshToken.setCreatedAt(Instant.now());
