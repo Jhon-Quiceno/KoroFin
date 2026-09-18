@@ -1,6 +1,10 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Requerido por local_auth para el bloqueo de la app con huella o rostro. -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
+    <!-- Requerido por image_picker para capturar fotos de recibos con la cámara. La galería no
+         necesita permiso de almacenamiento: image_picker delega en el Photo Picker del sistema
+         (Android 13+) o en un intent implícito a la app de galería en versiones anteriores. -->
+    <uses-permission android:name="android.permission.CAMERA" />
 
     <application
         android:label="korofin_mobile"

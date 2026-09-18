@@ -150,7 +150,106 @@ class RefreshTokenServiceTest {
         verify(refreshTokenRepository).revokeAllActiveForUser(eq(3L), any(Instant.class));
     }
 
+    @Test
+    void createForUserGeneratesADifferentFamilyIdPerSession() {
+        User user = new User();
+        user.setId(1L);
+        Claims claims = mock(Claims.class);
+        when(claims.getExpiration()).thenReturn(Date.from(Instant.now().plusSeconds(3600)));
+        when(jwtService.generateRefreshToken(eq(user), any(UUID.class)))
+                .thenReturn("raw-token-1", "raw-token-2");
+        when(jwtService.parseRefreshToken("raw-token-1")).thenReturn(claims);
+        when(jwtService.parseRefreshToken("raw-token-2")).thenReturn(claims);
+        when(refreshTokenRepository.save(any(RefreshToken.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        refreshTokenService.createForUser(user, false);
+        refreshTokenService.createForUser(user, false);
+
+        ArgumentCaptor<RefreshToken> captor = ArgumentCaptor.forClass(RefreshToken.class);
+        verify(refreshTokenRepository, times(2)).save(captor.capture());
+        UUID firstFamilyId = captor.getAllValues().get(0).getFamilyId();
+        UUID secondFamilyId = captor.getAllValues().get(1).getFamilyId();
+
+        Assertions.assertNotNull(firstFamilyId);
+        Assertions.assertNotNull(secondFamilyId);
+        Assertions.assertNotEquals(firstFamilyId, secondFamilyId,
+                "dos logins del mismo usuario deben generar familias distintas");
+    }
+
+    @Test
+    void rotateShouldPropagateFamilyIdFromOldTokenToNewOne() {
+        UUID familyId = UUID.randomUUID();
+        RotationTestResult result = rotateStoredToken(true, familyId);
+
+        ArgumentCaptor<RefreshToken> captor = ArgumentCaptor.forClass(RefreshToken.class);
+        verify(refreshTokenRepository, times(2)).save(captor.capture());
+        RefreshToken savedNew = captor.getAllValues().get(1);
+        Assertions.assertEquals(familyId, savedNew.getFamilyId());
+    }
+
+    @Test
+    void reusingAnAlreadyRotatedTokenRevokesTheWholeFamilyAndFails() {
+        UUID familyId = UUID.randomUUID();
+        UUID tokenId = UUID.randomUUID();
+        RefreshToken reusedToken = new RefreshToken();
+        reusedToken.setTokenId(tokenId);
+        reusedToken.setFamilyId(familyId);
+        reusedToken.setRevokedAt(Instant.now().minusSeconds(30));
+
+        Claims claims = mock(Claims.class);
+        when(claims.getId()).thenReturn(tokenId.toString());
+        when(jwtService.parseRefreshToken("reused-token")).thenReturn(claims);
+        when(refreshTokenRepository.findByTokenId(tokenId)).thenReturn(Optional.of(reusedToken));
+
+        Assertions.assertThrows(InvalidRefreshTokenException.class,
+                () -> refreshTokenService.rotate("reused-token"));
+
+        verify(refreshTokenRepository).revokeAllActiveForFamily(eq(familyId), any(Instant.class));
+    }
+
+    @Test
+    void afterReuseIsDetectedNeitherTheOldNorTheCurrentFamilyTokenCanRotateAgain() {
+        UUID familyId = UUID.randomUUID();
+
+        // El token viejo ya presentado como reuso: sigue revocado, volver a intentarlo no debe
+        // servir (y vuelve a disparar la revocación de familia, que es inofensiva/idempotente).
+        UUID oldTokenId = UUID.randomUUID();
+        RefreshToken oldToken = new RefreshToken();
+        oldToken.setTokenId(oldTokenId);
+        oldToken.setFamilyId(familyId);
+        oldToken.setRevokedAt(Instant.now().minusSeconds(30));
+
+        Claims oldClaims = mock(Claims.class);
+        when(oldClaims.getId()).thenReturn(oldTokenId.toString());
+        when(jwtService.parseRefreshToken("old-token")).thenReturn(oldClaims);
+        when(refreshTokenRepository.findByTokenId(oldTokenId)).thenReturn(Optional.of(oldToken));
+
+        Assertions.assertThrows(InvalidRefreshTokenException.class,
+                () -> refreshTokenService.rotate("old-token"));
+
+        // El token "actual" de la familia, ya revocado como efecto de la detección de reuso.
+        UUID currentTokenId = UUID.randomUUID();
+        RefreshToken currentToken = new RefreshToken();
+        currentToken.setTokenId(currentTokenId);
+        currentToken.setFamilyId(familyId);
+        currentToken.setRevokedAt(Instant.now());
+
+        Claims currentClaims = mock(Claims.class);
+        when(currentClaims.getId()).thenReturn(currentTokenId.toString());
+        when(jwtService.parseRefreshToken("current-token")).thenReturn(currentClaims);
+        when(refreshTokenRepository.findByTokenId(currentTokenId)).thenReturn(Optional.of(currentToken));
+
+        Assertions.assertThrows(InvalidRefreshTokenException.class,
+                () -> refreshTokenService.rotate("current-token"));
+
+        verify(refreshTokenRepository, times(2)).revokeAllActiveForFamily(eq(familyId), any(Instant.class));
+    }
+
     private RotationTestResult rotateStoredToken(boolean rememberMe) {
+        return rotateStoredToken(rememberMe, UUID.randomUUID());
+    }
+
+    private RotationTestResult rotateStoredToken(boolean rememberMe, UUID familyId) {
         UUID tokenId = UUID.randomUUID();
         String oldRawToken = "old-refresh-token";
         User user = new User();
@@ -159,6 +258,7 @@ class RefreshTokenServiceTest {
         RefreshToken stored = new RefreshToken();
         stored.setId(100L);
         stored.setTokenId(tokenId);
+        stored.setFamilyId(familyId);
         stored.setUser(user);
         stored.setTokenHash(hashToken(oldRawToken));
         stored.setExpiresAt(Instant.now().plusSeconds(3600));
