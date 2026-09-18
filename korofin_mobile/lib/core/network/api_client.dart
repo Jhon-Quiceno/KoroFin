@@ -1,7 +1,11 @@
+import 'dart:io';
+
 import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
 
 import '../config/app_config.dart';
 import 'api_exception.dart';
+import 'certificate_pinning.dart';
 import 'dio_error_mapper.dart';
 
 /// Devuelve el access token vigente (en memoria), o `null` si no hay sesión.
@@ -24,13 +28,17 @@ typedef SessionExpiredCallback = void Function();
 ///   single-flight: varias requests que fallan a la vez comparten el mismo
 ///   intento) y reintenta la request original;
 /// - traduce cualquier fallo a [ApiException] para que los repositorios no
-///   toquen `DioException` directamente.
+///   toquen `DioException` directamente;
+/// - si se compiló con `PINNED_CERT_SHA256` (ver [AppConfig]), valida el
+///   certificado del backend contra ese hash además del almacén de CAs del
+///   SO (certificate pinning opt-in, pensado para producción).
 class ApiClient {
   // Un parámetro con nombre no puede ser privado en Dart, así que el campo se
   // asigna en la lista de inicialización en vez de con un formal.
   ApiClient({
     required TokenReader readAccessToken,
     Dio? dio,
+    String? pinnedCertSha256,
   })  : _readAccessToken = readAccessToken, // ignore: prefer_initializing_formals
         _dio = dio ?? Dio() {
     _dio.options
@@ -39,6 +47,8 @@ class ApiClient {
       ..receiveTimeout = AppConfig.requestTimeout
       ..sendTimeout = AppConfig.requestTimeout
       ..headers[Headers.contentTypeHeader] = Headers.jsonContentType;
+
+    _applyCertificatePinning(pinnedCertSha256 ?? AppConfig.pinnedCertSha256);
 
     _dio.interceptors.add(
       InterceptorsWrapper(
@@ -202,4 +212,26 @@ class ApiClient {
 
   bool _isSessionPath(String path) =>
       _sessionPaths.any((sessionPath) => path.endsWith(sessionPath) || path == sessionPath);
+
+  /// Certificate pinning opt-in: solo hace algo si [pinnedSha256Hex] viene con
+  /// valor (por defecto, `AppConfig.pinnedCertSha256`, que es `''` en
+  /// dev/local y en los tests que no lo pasan explícito). Vacío -> no se toca
+  /// el `httpClientAdapter`: mismo comportamiento que antes de este cambio.
+  ///
+  /// `validateCertificate` es un hook propio de `IOHttpClientAdapter` (no de
+  /// `dart:io`) que se evalúa sobre el certificado *hoja* de la respuesta ya
+  /// recibida, sin importar si la cadena fue aceptada por el almacén de CAs
+  /// del SO o no — por eso sirve como defensa incluso si un CA malicioso
+  /// llegó a instalarse como confiable en el dispositivo (el escenario que
+  /// justamente motiva el pinning). Si no coincide, Dio lanza
+  /// `DioException.badCertificate` en vez de entregar la respuesta.
+  void _applyCertificatePinning(String pinnedSha256Hex) {
+    if (pinnedSha256Hex.isEmpty) return;
+
+    _dio.httpClientAdapter = IOHttpClientAdapter(
+      validateCertificate: (X509Certificate? certificate, String host, int port) =>
+          certificate != null &&
+          certificateMatchesPinnedHash(certificate, pinnedSha256Hex),
+    );
+  }
 }
