@@ -8,6 +8,7 @@ import '../../state/movements/movements_controller.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common/empty_state.dart';
+import '../../widgets/common/offline_queue_banner.dart';
 import '../../widgets/list_items/movement_tile.dart';
 import '../../widgets/nav/app_header.dart';
 import 'transaction_form_sheet.dart';
@@ -40,8 +41,17 @@ class _MovementsScreenState extends ConsumerState<MovementsScreen>
     final MovementFormResult? result =
         await showTransactionForm(context, type: _currentType);
     if (result == null) return;
-    await _run(() =>
-        ref.read(movementsProvider(result.type).notifier).add(result.draft));
+    await _run(() async {
+      final AddOutcome outcome = await ref
+          .read(movementsProvider(result.type).notifier)
+          .add(result.draft);
+      if (outcome == AddOutcome.queued && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text(
+              'Sin conexión: se guardó en el dispositivo y se sincronizará automáticamente.'),
+        ));
+      }
+    });
   }
 
   Future<void> _run(Future<void> Function() action) async {
@@ -67,6 +77,7 @@ class _MovementsScreenState extends ConsumerState<MovementsScreen>
           onProfileTap: () => context.push('/settings'),
           onSettingsTap: () => context.push('/settings'),
         ),
+        const OfflineQueueBanner(),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
           child: Row(

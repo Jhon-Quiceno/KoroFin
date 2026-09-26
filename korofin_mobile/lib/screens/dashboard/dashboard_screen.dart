@@ -19,6 +19,7 @@ import '../../widgets/cards/linked_alert_card.dart';
 import '../../widgets/cards/section_card.dart';
 import '../../widgets/charts/category_donut_chart.dart';
 import '../../widgets/charts/income_expense_bar_chart.dart';
+import '../../widgets/common/offline_queue_banner.dart';
 import '../../widgets/nav/app_header.dart';
 
 /// Pantalla 3 — Dashboard/Inicio: cifras del mes desde `/api/analysis/summary`,
@@ -45,6 +46,7 @@ class DashboardScreen extends ConsumerWidget {
           onProfileTap: () => context.push('/settings'),
           onSettingsTap: () => context.push('/settings'),
         ),
+        const OfflineQueueBanner(),
         Expanded(
           child: dashboard.when(
             loading: () => const Center(child: CircularProgressIndicator()),

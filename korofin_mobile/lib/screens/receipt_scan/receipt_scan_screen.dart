@@ -108,20 +108,24 @@ class _ReceiptScanScreenState extends ConsumerState<ReceiptScanScreen> {
     }
     setState(() => _saving = true);
     try {
-      await ref.read(movementsProvider(_type).notifier).add(MovementDraft(
-            amount: amount,
-            date: DateTime.now(),
-            description:
-                _description.text.trim().isEmpty ? null : _description.text.trim(),
-            categoryId: _categoryId,
-            paymentMethod:
-                _type == MovementType.expense ? PaymentMethod.cash : null,
-          ));
+      final AddOutcome outcome =
+          await ref.read(movementsProvider(_type).notifier).add(MovementDraft(
+                amount: amount,
+                date: DateTime.now(),
+                description: _description.text.trim().isEmpty
+                    ? null
+                    : _description.text.trim(),
+                categoryId: _categoryId,
+                paymentMethod:
+                    _type == MovementType.expense ? PaymentMethod.cash : null,
+              ));
       if (mounted) {
         Navigator.of(context).pop();
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Movimiento creado desde el recibo')),
-        );
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text(outcome == AddOutcome.queued
+              ? 'Sin conexión: se guardó en el dispositivo y se sincronizará automáticamente.'
+              : 'Movimiento creado desde el recibo'),
+        ));
       }
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
