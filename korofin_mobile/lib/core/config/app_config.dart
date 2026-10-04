@@ -4,6 +4,7 @@
 /// hornear una URL de producción en el binario. En el emulador de Android,
 /// `10.0.2.2` es la máquina anfitriona; en un dispositivo físico hay que usar
 /// la IP LAN de la PC (nunca `localhost`).
+/// flutter run --dart-define=API_BASE_URL=http://192.168.1.11:8080
 class AppConfig {
   const AppConfig._();
 
