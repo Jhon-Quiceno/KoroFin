@@ -4,20 +4,27 @@ import '../../data/formatters.dart';
 import '../../theme/app_spacing.dart';
 
 /// Hero card on the Dashboard: total balance in large bold type over a
-/// dark slate surface, with income/expense mini-summary below.
-class BalanceCard extends StatelessWidget {
+/// dark slate surface, with income/expense mini-summary below. Owns its own
+/// visibility toggle (the eye icon) so hiding amounts doesn't need external
+/// wiring.
+class BalanceCard extends StatefulWidget {
   const BalanceCard({
     super.key,
     required this.balance,
     required this.income,
     required this.expense,
-    this.onToggleVisibility,
   });
 
   final double balance;
   final double income;
   final double expense;
-  final VoidCallback? onToggleVisibility;
+
+  @override
+  State<BalanceCard> createState() => _BalanceCardState();
+}
+
+class _BalanceCardState extends State<BalanceCard> {
+  bool _hidden = false;
 
   @override
   Widget build(BuildContext context) {
@@ -40,19 +47,30 @@ class BalanceCard extends StatelessWidget {
               const Text('Balance total', style: TextStyle(color: Color(0xFF94A3B8), fontSize: 14, fontWeight: FontWeight.w500)),
               const Spacer(),
               InkWell(
-                onTap: onToggleVisibility,
+                onTap: () => setState(() => _hidden = !_hidden),
                 borderRadius: BorderRadius.circular(999),
-                child: const Padding(
-                  padding: EdgeInsets.all(4),
-                  child: Icon(Icons.visibility_outlined, size: 18, color: Color(0xFF94A3B8)),
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Icon(
+                    _hidden
+                        ? Icons.visibility_off_outlined
+                        : Icons.visibility_outlined,
+                    size: 18,
+                    color: const Color(0xFF94A3B8),
+                  ),
                 ),
               ),
             ],
           ),
           const SizedBox(height: AppSpacing.sm),
-          Text(
-            AppFormatters.currency(balance),
-            style: const TextStyle(color: Colors.white, fontSize: 34, fontWeight: FontWeight.w700, letterSpacing: -0.5),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              _hidden ? '••••••' : AppFormatters.currency(widget.balance),
+              maxLines: 1,
+              style: const TextStyle(color: Colors.white, fontSize: 34, fontWeight: FontWeight.w700, letterSpacing: -0.5),
+            ),
           ),
           const SizedBox(height: AppSpacing.xl),
           Row(
@@ -62,7 +80,8 @@ class BalanceCard extends StatelessWidget {
                   icon: Icons.arrow_downward_rounded,
                   color: const Color(0xFF4ADE80),
                   label: 'Ingresos',
-                  amount: income,
+                  amount: widget.income,
+                  hidden: _hidden,
                 ),
               ),
               Container(width: 1, height: 32, color: Colors.white.withValues(alpha: 0.08)),
@@ -71,7 +90,8 @@ class BalanceCard extends StatelessWidget {
                   icon: Icons.arrow_upward_rounded,
                   color: const Color(0xFFF87171),
                   label: 'Gastos',
-                  amount: expense,
+                  amount: widget.expense,
+                  hidden: _hidden,
                 ),
               ),
             ],
@@ -83,12 +103,19 @@ class BalanceCard extends StatelessWidget {
 }
 
 class _MiniStat extends StatelessWidget {
-  const _MiniStat({required this.icon, required this.color, required this.label, required this.amount});
+  const _MiniStat({
+    required this.icon,
+    required this.color,
+    required this.label,
+    required this.amount,
+    required this.hidden,
+  });
 
   final IconData icon;
   final Color color;
   final String label;
   final double amount;
+  final bool hidden;
 
   @override
   Widget build(BuildContext context) {
@@ -105,11 +132,14 @@ class _MiniStat extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 4),
-          Text(
-            AppFormatters.currency(amount),
-            style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Text(
+              hidden ? '••••••' : AppFormatters.currency(amount),
+              maxLines: 1,
+              style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.w600),
+            ),
           ),
         ],
       ),
