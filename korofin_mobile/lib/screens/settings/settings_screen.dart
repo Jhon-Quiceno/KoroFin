@@ -189,6 +189,7 @@ class _PreferencesSection extends ConsumerWidget {
           const Text('Tema'),
           const SizedBox(height: AppSpacing.sm),
           SegmentedButton<ThemePreference>(
+            showSelectedIcon: false,
             segments: const [
               ButtonSegment(
                   value: ThemePreference.light,
@@ -207,26 +208,11 @@ class _PreferencesSection extends ConsumerWidget {
             onSelectionChanged: (s) => notifier.setTheme(s.first),
           ),
           const SizedBox(height: AppSpacing.lg),
-          Row(
-            children: [
-              Expanded(
-                child: _Dropdown<String>(
-                  label: 'Moneda',
-                  value: p.currency,
-                  items: {for (final c in supportedCurrencies) c: c},
-                  onChanged: notifier.setCurrency,
-                ),
-              ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: _Dropdown<AppLanguage>(
-                  label: 'Idioma',
-                  value: p.language,
-                  items: {for (final l in AppLanguage.values) l: l.label},
-                  onChanged: notifier.setLanguage,
-                ),
-              ),
-            ],
+          _Dropdown<AppLanguage>(
+            label: 'Idioma',
+            value: p.language,
+            items: {for (final l in AppLanguage.values) l: l.label},
+            onChanged: notifier.setLanguage,
           ),
         ],
       ),
