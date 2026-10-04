@@ -20,6 +20,7 @@ import '../../widgets/cards/section_card.dart';
 import '../../widgets/charts/category_donut_chart.dart';
 import '../../widgets/charts/income_expense_bar_chart.dart';
 import '../../widgets/nav/app_header.dart';
+import '../quick_add/quick_add_sheet.dart';
 
 /// Pantalla 3 — Dashboard/Inicio: cifras del mes desde `/api/analysis/summary`,
 /// gráficos, y tarjetas contextuales de predicción y recomendaciones.
@@ -35,38 +36,43 @@ class DashboardScreen extends ConsumerWidget {
 
     final AsyncValue<AiInsight?> insight = ref.watch(latestInsightProvider);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        AppHeader(
-          title: name.isEmpty ? 'Hola' : 'Hola, $name',
-          subtitle: 'Así va tu mes en KoroFin',
-          onNotificationsTap: () => context.push('/notifications'),
-          onProfileTap: () => context.push('/settings'),
-          onSettingsTap: () => context.push('/settings'),
-        ),
-        Expanded(
-          child: dashboard.when(
-            loading: () => const Center(child: CircularProgressIndicator()),
-            error: (error, _) => _ErrorView(
-              message: error is ApiException
-                  ? error.message
-                  : 'No se pudo cargar el resumen.',
-              onRetry: () => ref.read(dashboardProvider.notifier).refresh(),
-            ),
-            data: (data) => RefreshIndicator(
-              onRefresh: () async {
-                ref.invalidate(latestInsightProvider);
-                await ref.read(dashboardProvider.notifier).refresh();
-              },
-              child: _DashboardBody(
-                data: data,
-                insight: insight.valueOrNull,
+    return Scaffold(
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          AppHeader(
+            title: name.isEmpty ? 'Hola' : 'Hola, $name',
+            subtitle: 'Así va tu mes en KoroFin',
+            onNotificationsTap: () => context.push('/notifications'),
+            onProfileTap: () => context.push('/settings'),
+          ),
+          Expanded(
+            child: dashboard.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (error, _) => _ErrorView(
+                message: error is ApiException
+                    ? error.message
+                    : 'No se pudo cargar el resumen.',
+                onRetry: () => ref.read(dashboardProvider.notifier).refresh(),
+              ),
+              data: (data) => RefreshIndicator(
+                onRefresh: () async {
+                  ref.invalidate(latestInsightProvider);
+                  await ref.read(dashboardProvider.notifier).refresh();
+                },
+                child: _DashboardBody(
+                  data: data,
+                  insight: insight.valueOrNull,
+                ),
               ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () => showQuickAddSheet(context, ref),
+        child: const Icon(Icons.add),
+      ),
     );
   }
 }
