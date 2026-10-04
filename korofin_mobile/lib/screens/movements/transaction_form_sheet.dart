@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/network/api_exception.dart';
@@ -71,6 +72,7 @@ class _TransactionFormSheetState extends ConsumerState<_TransactionFormSheet> {
   String? _categoryName;
   String? _error;
   bool _suggesting = false;
+  bool _confirming = false;
 
   bool get _isExpense => _type == MovementType.expense;
 
@@ -151,7 +153,7 @@ class _TransactionFormSheetState extends ConsumerState<_TransactionFormSheet> {
     if (picked != null) setState(() => _date = picked);
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     final double? amount = _parsedAmount;
     if (amount == null) {
       setState(() => _error = 'Ingresá un monto válido mayor a cero.');
@@ -166,6 +168,10 @@ class _TransactionFormSheetState extends ConsumerState<_TransactionFormSheet> {
       categoryId: _categoryId,
       paymentMethod: _isExpense ? _paymentMethod : null,
     );
+    // Breve confirmación visual (check animado) antes de cerrar el sheet.
+    setState(() => _confirming = true);
+    await Future<void>.delayed(const Duration(milliseconds: 220));
+    if (!mounted) return;
     Navigator.of(context).pop((type: _type, draft: draft));
   }
 
@@ -307,8 +313,21 @@ class _TransactionFormSheetState extends ConsumerState<_TransactionFormSheet> {
               const SizedBox(height: AppSpacing.lg),
               ElevatedButton(
                 style: ElevatedButton.styleFrom(backgroundColor: accent),
-                onPressed: _submit,
-                child: const Text('Guardar'),
+                onPressed: _confirming ? null : _submit,
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 180),
+                  switchInCurve: Curves.easeOut,
+                  child: _confirming
+                      ? const Icon(Icons.check_rounded, key: ValueKey('check'))
+                          .animate()
+                          .scale(
+                            begin: const Offset(0.6, 0.6),
+                            end: const Offset(1, 1),
+                            duration: 180.ms,
+                            curve: Curves.easeOut,
+                          )
+                      : const Text('Guardar', key: ValueKey('label')),
+                ),
               ),
             ],
           ),
