@@ -2,15 +2,18 @@ import 'package:flutter/material.dart';
 
 /// Design tokens extracted from the v0 prototype "KoroFin — Premium Oscuro".
 ///
-/// Palette is Tailwind-slate based with a single red accent used sparingly
-/// for primary CTAs, destructive actions and alerts.
+/// Palette is Tailwind-slate based with a single indigo accent used for
+/// primary CTAs and brand elements; destructive actions/alerts use their
+/// own fixed red, independent from the brand accent.
 class AppColors {
   AppColors._();
 
-  // Shared accent — identical in both light and dark mode.
-  static const Color accent = Color(0xFFDC2626); // red-600
-  static const Color accentHover = Color(0xFFB91C1C); // red-700
-  static const Color destructive = accent;
+  // Shared brand accent — identical in both light and dark mode.
+  static const Color accent = Color(0xFF4F46E5); // indigo-600
+  static const Color accentHover = Color(0xFF4338CA); // indigo-700
+
+  // Destructive actions/errors — intentionally not tied to `accent`.
+  static const Color destructive = Color(0xFFDC2626); // red-600
 
   // Semantic status colors (used across charts, badges, progress bars).
   static const Color success = Color(0xFF16A34A); // green-600
