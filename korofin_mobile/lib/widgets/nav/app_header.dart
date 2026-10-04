@@ -5,9 +5,9 @@ import '../../state/auth/auth_controller.dart';
 import '../../state/notifications/notifications_controller.dart';
 import '../../theme/app_theme.dart';
 
-/// Barra superior compartida: título/subtítulo a la izquierda y tres íconos
-/// persistentes (campana con badge de no leídas, avatar con la inicial real,
-/// engranaje) que abren Notificaciones, Perfil y Configuración.
+/// Barra superior compartida: título/subtítulo a la izquierda y dos íconos
+/// persistentes (campana con badge de no leídas, avatar con la inicial real)
+/// que abren Notificaciones y Configuración (el avatar también lleva ahí).
 class AppHeader extends ConsumerWidget implements PreferredSizeWidget {
   const AppHeader({
     super.key,
@@ -15,7 +15,6 @@ class AppHeader extends ConsumerWidget implements PreferredSizeWidget {
     this.subtitle,
     this.onNotificationsTap,
     this.onProfileTap,
-    this.onSettingsTap,
     this.leading,
   });
 
@@ -23,7 +22,6 @@ class AppHeader extends ConsumerWidget implements PreferredSizeWidget {
   final String? subtitle;
   final VoidCallback? onNotificationsTap;
   final VoidCallback? onProfileTap;
-  final VoidCallback? onSettingsTap;
   final Widget? leading;
 
   @override
@@ -58,9 +56,13 @@ class AppHeader extends ConsumerWidget implements PreferredSizeWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: Theme.of(context).textTheme.headlineMedium),
                   if (subtitle != null)
                     Text(subtitle!,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodyMedium),
                 ],
               ),
@@ -110,12 +112,6 @@ class AppHeader extends ConsumerWidget implements PreferredSizeWidget {
                         fontWeight: FontWeight.w700,
                         fontSize: 13)),
               ),
-            ),
-            const SizedBox(width: 4),
-            _HeaderIconButton(
-              icon: Icons.settings_outlined,
-              tooltip: 'Configuración',
-              onTap: onSettingsTap,
             ),
           ],
         ),

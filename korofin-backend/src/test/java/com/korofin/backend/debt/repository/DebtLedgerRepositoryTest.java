@@ -107,11 +107,17 @@ class DebtLedgerRepositoryTest implements PostgresContainerSupport {
         Expense savedExpense = expenseRepository.saveAndFlush(expense);
         assertThat(savedExpense.getDebtPayment().getId()).isEqualTo(payment.getId());
 
-        debtPaymentRepository.delete(payment);
+        // Hay que vaciar el contexto de persistencia ANTES de borrar el abono: si el Expense sigue
+        // gestionado apuntando al DebtPayment que se está removiendo, Hibernate lo encuentra sucio
+        // durante el flush del borrado y lo rechaza como referencia a una instancia transitoria.
+        entityManager.clear();
+
+        DebtPayment managedPayment = debtPaymentRepository.findById(payment.getId()).orElseThrow();
+        debtPaymentRepository.delete(managedPayment);
         debtPaymentRepository.flush();
 
         // El ON DELETE SET NULL lo aplica la base de datos, así que hay que vaciar el contexto de
-        // persistencia para que la relectura vuelva a la base y no al caché de primer nivel.
+        // nuevo para que la relectura vuelva a la base y no al caché de primer nivel.
         entityManager.clear();
         Expense reloaded = expenseRepository.findById(savedExpense.getId()).orElseThrow();
         assertThat(reloaded.getDebtPayment()).isNull();

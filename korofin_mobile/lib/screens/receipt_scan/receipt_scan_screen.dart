@@ -155,62 +155,71 @@ class _ReceiptScanScreenState extends ConsumerState<ReceiptScanScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Datos detectados',
-              style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: AppSpacing.xs),
-          Text('Revisá y ajustá antes de guardar.',
-              style: Theme.of(context).textTheme.bodyMedium),
-          const SizedBox(height: AppSpacing.lg),
-          SegmentedButton<MovementType>(
-            segments: const [
-              ButtonSegment(value: MovementType.expense, label: Text('Gasto')),
-              ButtonSegment(value: MovementType.income, label: Text('Ingreso')),
-            ],
-            selected: {_type},
-            onSelectionChanged: (s) => setState(() {
-              _type = s.first;
-              _categoryId = null;
-              _categoryName = null;
-            }),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          TextField(
-            controller: _amount,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: 'Monto'),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          TextField(
-            controller: _description,
-            decoration: const InputDecoration(labelText: 'Descripción'),
-          ),
-          const SizedBox(height: AppSpacing.md),
-          InkWell(
-            borderRadius: BorderRadius.circular(AppRadii.md),
-            onTap: _pickCategory,
-            child: InputDecorator(
-              decoration:
-                  const InputDecoration(labelText: 'Categoría sugerida'),
-              child: Row(
+          Expanded(
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(CategoryVisuals.iconForName(_categoryName),
-                      size: 18,
-                      color: CategoryVisuals.colorForName(_categoryName)),
-                  const SizedBox(width: AppSpacing.sm),
-                  Text(_categoryName ?? 'Sin categoría'),
-                  const Spacer(),
-                  const Icon(Icons.chevron_right_rounded, size: 18),
+                  Text('Datos detectados',
+                      style: Theme.of(context).textTheme.titleLarge),
+                  const SizedBox(height: AppSpacing.xs),
+                  Text('Revisá y ajustá antes de guardar.',
+                      style: Theme.of(context).textTheme.bodyMedium),
+                  const SizedBox(height: AppSpacing.lg),
+                  SegmentedButton<MovementType>(
+                    segments: const [
+                      ButtonSegment(value: MovementType.expense, label: Text('Gasto')),
+                      ButtonSegment(value: MovementType.income, label: Text('Ingreso')),
+                    ],
+                    selected: {_type},
+                    onSelectionChanged: (s) => setState(() {
+                      _type = s.first;
+                      _categoryId = null;
+                      _categoryName = null;
+                    }),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  TextField(
+                    controller: _amount,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: 'Monto'),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  TextField(
+                    controller: _description,
+                    decoration: const InputDecoration(labelText: 'Descripción'),
+                  ),
+                  const SizedBox(height: AppSpacing.md),
+                  InkWell(
+                    borderRadius: BorderRadius.circular(AppRadii.md),
+                    onTap: _pickCategory,
+                    child: InputDecorator(
+                      decoration:
+                          const InputDecoration(labelText: 'Categoría sugerida'),
+                      child: Row(
+                        children: [
+                          Icon(CategoryVisuals.iconForName(_categoryName),
+                              size: 18,
+                              color: CategoryVisuals.colorForName(_categoryName)),
+                          const SizedBox(width: AppSpacing.sm),
+                          Text(_categoryName ?? 'Sin categoría'),
+                          const Spacer(),
+                          const Icon(Icons.chevron_right_rounded, size: 18),
+                        ],
+                      ),
+                    ),
+                  ),
+                  if (_error != null) ...[
+                    const SizedBox(height: AppSpacing.md),
+                    Text(_error!,
+                        style:
+                            TextStyle(color: Theme.of(context).colorScheme.error)),
+                  ],
                 ],
               ),
             ),
           ),
-          if (_error != null) ...[
-            const SizedBox(height: AppSpacing.md),
-            Text(_error!,
-                style:
-                    TextStyle(color: Theme.of(context).colorScheme.error)),
-          ],
-          const Spacer(),
+          const SizedBox(height: AppSpacing.md),
           ElevatedButton(
             onPressed: _saving ? null : _save,
             child: _saving

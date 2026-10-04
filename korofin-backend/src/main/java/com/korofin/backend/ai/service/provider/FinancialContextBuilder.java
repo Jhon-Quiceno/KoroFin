@@ -34,12 +34,12 @@ import java.util.Locale;
  * da una foto compacta de los datos financieros reales del usuario en cada request (ver
  * {@code docs/backend-plan.md} sección 4).
  *
- * <p>A diferencia de FinSmart (que delegaba en {@code FinancialAnalysisService} del dominio
- * {@code analysis}), esta fase de KoroFin todavía no tiene ese dominio — se arma directamente
- * desde {@link ExpenseRepository}/{@link IncomeRepository}/{@link DebtRepository} (ya existentes
- * de fases anteriores), agregando el mes calendario actual en el momento en vez de delegar en un
- * servicio de resumen persistido. Cuando el dominio {@code analysis} exista, esta clase puede
- * simplificarse para delegar en él, igual que hacía FinSmart.
+ * <p>El contexto se arma directamente desde
+ * {@link ExpenseRepository}/{@link IncomeRepository}/{@link DebtRepository}, agregando el mes
+ * calendario actual en el momento, en vez de delegar en {@code FinancialAnalysisService} del
+ * dominio {@code analysis}. Esa separación es deliberada: {@code analysis} persiste análisis
+ * históricos por usuario, mientras que el prompt de IA necesita una foto siempre fresca del mes
+ * en curso, sin depender de que exista un análisis guardado.
  */
 @Component
 public class FinancialContextBuilder {

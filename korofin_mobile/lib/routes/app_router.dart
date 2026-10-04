@@ -18,6 +18,8 @@ import '../screens/settings/settings_screen.dart';
 import '../screens/shell/scaffold_with_nav.dart';
 import '../state/auth/auth_controller.dart';
 import '../state/auth/auth_state.dart';
+import '../state/lock/lock_controller.dart';
+import '../state/lock/lock_state.dart';
 
 /// Tabla central de rutas. Las cuatro destinos del bottom-nav (Inicio,
 /// Movimientos, Deudas, Asistente) viven dentro de un [StatefulShellRoute] para
@@ -27,6 +29,11 @@ import '../state/auth/auth_state.dart';
 /// manda al login; con sesión, `/login` y `/register` mandan al home. El estado
 /// `unknown` (bootstrap en curso) no llega acá — `main.dart` muestra el splash
 /// hasta que se resuelve.
+///
+/// Encima de eso corre el gate del bloqueo opt-in: con sesión autenticada y el
+/// bloqueo habilitado y activo, cualquier ruta manda a `/lock` conservando el
+/// destino original en `?from=`; al desbloquear (el `AppLockState` deja de
+/// estar `locked`), `/lock` redirige de vuelta a ese destino.
 final goRouterProvider = Provider<GoRouter>((ref) {
   final _RouterRefresh refresh = _RouterRefresh(ref);
   ref.onDispose(refresh.dispose);
@@ -45,6 +52,23 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       }
       if (status == AuthStatus.authenticated && onAuthScreen) {
         return '/home';
+      }
+
+      if (status == AuthStatus.authenticated) {
+        final AppLockState lockState = ref.read(lockControllerProvider);
+        final bool onLockScreen = location == '/lock';
+
+        if (lockState.enabled && lockState.locked) {
+          if (onLockScreen) return null;
+          final String target = state.uri.toString();
+          return '/lock?from=${Uri.encodeComponent(target)}';
+        }
+        if (onLockScreen) {
+          // Ya se desbloqueó: vuelve al destino que el usuario quería o, si
+          // no había uno guardado, al home.
+          final String? from = state.uri.queryParameters['from'];
+          return (from != null && from.isNotEmpty) ? from : '/home';
+        }
       }
       return null;
     },
@@ -87,21 +111,28 @@ final goRouterProvider = Provider<GoRouter>((ref) {
   );
 });
 
-/// Puente entre el estado de auth de Riverpod y el `refreshListenable` de
-/// go_router: cada cambio de [AuthStatus] fuerza a re-evaluar el `redirect`.
+/// Puente entre el estado de Riverpod y el `refreshListenable` de go_router:
+/// cada cambio de [AuthStatus] o de [AppLockState] fuerza a re-evaluar el
+/// `redirect`.
 class _RouterRefresh extends ChangeNotifier {
   _RouterRefresh(Ref ref) {
-    _subscription = ref.listen<AuthStatus>(
+    _authSubscription = ref.listen<AuthStatus>(
       authControllerProvider.select((state) => state.status),
+      (_, _) => notifyListeners(),
+    );
+    _lockSubscription = ref.listen<AppLockState>(
+      lockControllerProvider,
       (_, _) => notifyListeners(),
     );
   }
 
-  late final ProviderSubscription<AuthStatus> _subscription;
+  late final ProviderSubscription<AuthStatus> _authSubscription;
+  late final ProviderSubscription<AppLockState> _lockSubscription;
 
   @override
   void dispose() {
-    _subscription.close();
+    _authSubscription.close();
+    _lockSubscription.close();
     super.dispose();
   }
 }

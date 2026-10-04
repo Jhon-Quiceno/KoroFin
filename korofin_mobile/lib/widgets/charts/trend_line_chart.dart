@@ -1,6 +1,7 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
+import '../../data/formatters.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 
@@ -39,7 +40,27 @@ class TrendLineChart extends StatelessWidget {
               ),
             ),
           ),
-          lineTouchData: const LineTouchData(enabled: true),
+          lineTouchData: LineTouchData(
+            enabled: true,
+            touchTooltipData: LineTouchTooltipData(
+              // Por defecto fl_chart muestra `spot.y.toString()` (ej.
+              // "4000000.0"); lo reemplazamos por el formato de moneda COP.
+              getTooltipItems: (touchedSpots) => touchedSpots
+                  .map(
+                    (spot) => LineTooltipItem(
+                      AppFormatters.currency(spot.y),
+                      TextStyle(
+                        color: spot.bar.gradient?.colors.first ??
+                            spot.bar.color ??
+                            Colors.blueGrey,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                  )
+                  .toList(),
+            ),
+          ),
           lineBarsData: [
             LineChartBarData(
               spots: [for (int i = 0; i < values.length; i++) FlSpot(i.toDouble(), values[i])],

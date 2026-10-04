@@ -36,16 +36,24 @@ class CreditCardTile extends StatelessWidget {
               children: [
                 Expanded(
                   child: Text(card.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
                           color: Colors.white,
                           fontSize: 16,
                           fontWeight: FontWeight.w700)),
                 ),
-                Text(card.bank ?? card.franchise.label,
-                    style: const TextStyle(
-                        color: Color(0xFF94A3B8),
-                        fontSize: 13,
-                        fontWeight: FontWeight.w500)),
+                const SizedBox(width: AppSpacing.sm),
+                Flexible(
+                  child: Text(card.bank ?? card.franchise.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      textAlign: TextAlign.right,
+                      style: const TextStyle(
+                          color: Color(0xFF94A3B8),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w500)),
+                ),
               ],
             ),
             Text(card.franchise.label,

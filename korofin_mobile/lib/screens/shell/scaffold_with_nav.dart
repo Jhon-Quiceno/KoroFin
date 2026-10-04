@@ -3,11 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../widgets/nav/app_bottom_nav.dart';
-import '../quick_add/quick_add_sheet.dart';
 
 /// Envuelve las cuatro ramas del bottom-nav (Inicio, Movimientos, Deudas,
-/// Asistente) en un solo Scaffold para que el nav y el FAB de Quick-Add
-/// persistan mientras `StatefulShellRoute` cambia de rama.
+/// Asistente) en un solo Scaffold para que el nav persista mientras
+/// `StatefulShellRoute` cambia de rama. El FAB es contextual a cada rama (ver
+/// `dashboard_screen.dart`, `movements_screen.dart` y `debts_hub_screen.dart`);
+/// en Asistente no hay ningún FAB.
 class ScaffoldWithNav extends ConsumerWidget {
   const ScaffoldWithNav({super.key, required this.navigationShell});
 
@@ -23,10 +24,6 @@ class ScaffoldWithNav extends ConsumerWidget {
           index,
           initialLocation: index == navigationShell.currentIndex,
         ),
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => showQuickAddSheet(context, ref),
-        child: const Icon(Icons.add),
       ),
     );
   }
