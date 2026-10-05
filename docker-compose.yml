@@ -60,6 +60,19 @@ services:
         condition: service_healthy
     restart: on-failure
 
+  # Expone "app" hacia internet via un tunel saliente de Cloudflare (korofin.jhonqui.dev):
+  # sin esto no hace falta abrir ningun puerto del router de casa. TUNNEL_TOKEN sale del
+  # tunel creado en el dashboard de Cloudflare Zero Trust.
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: korofin-tunnel
+    command: tunnel run
+    environment:
+      TUNNEL_TOKEN: ${TUNNEL_TOKEN}
+    depends_on:
+      - app
+    restart: on-failure
+
   n8n-db:
     image: postgres:16-alpine
     container_name: korofin-n8n-db
