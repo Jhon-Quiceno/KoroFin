@@ -15,6 +15,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+    restart: unless-stopped
 
   app:
     build: ./korofin-backend
@@ -58,7 +59,9 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    restart: on-failure
+    # unless-stopped (no on-failure): tiene que volver solo si se reinicia el PC, no solo
+    # si el proceso crashea - el caso de uso es "prendo el PC y ya esta arriba".
+    restart: unless-stopped
 
   # Expone "app" hacia internet via un tunel saliente de Cloudflare (korofin.jhonqui.dev):
   # sin esto no hace falta abrir ningun puerto del router de casa. TUNNEL_TOKEN sale del
@@ -71,7 +74,7 @@ services:
       TUNNEL_TOKEN: ${TUNNEL_TOKEN}
     depends_on:
       - app
-    restart: on-failure
+    restart: unless-stopped
 
   n8n-db:
     image: postgres:16-alpine
