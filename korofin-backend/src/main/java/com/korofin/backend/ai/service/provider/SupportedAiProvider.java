@@ -13,16 +13,27 @@ import java.util.Optional;
  */
 public enum SupportedAiProvider {
 
-    NVIDIA("https://integrate.api.nvidia.com/v1", "meta/llama-3.1-70b-instruct", "nvidia/nemotron-nano-12b-v2-vl"),
+    // "meta/llama-3.2-11b-vision-instruct" es multimodal y sirve para texto y para imagen, por eso
+    // el 3er argumento repite el 2do. Reemplaza a "meta/llama-3.1-70b-instruct" y a
+    // "nvidia/nemotron-nano-12b-v2-vl", que NVIDIA dio de baja el 2026-08-26: pedirlos hoy
+    // devuelve HTTP 410 Gone.
+    NVIDIA("https://integrate.api.nvidia.com/v1", "meta/llama-3.2-11b-vision-instruct", "meta/llama-3.2-11b-vision-instruct"),
     // Endpoint OpenAI-compatible oficial de Gemini (no la API nativa de Google). "gemini-3.5-flash"
     // es multimodal: el mismo modelo sirve para texto y para imagen, por eso el 3er argumento
     // repite el 2do.
     GEMINI("https://generativelanguage.googleapis.com/v1beta/openai", "gemini-3.5-flash", "gemini-3.5-flash"),
+    // El catálogo de OpenCode no publica ningún modelo gratuito utilizable: el anterior default
+    // "deepseek-v4-flash-free" responde "Model is unavailable" y el resto exige un método de pago
+    // en el workspace. Se deja el que su documentación lista como gratuito para que la entrada no
+    // quede sin default, pero este proveedor no va a responder sin una cuenta con pago habilitado.
     OPENCODE("https://opencode.ai/zen/v1", "deepseek-v4-flash-free", null),
-    OPENROUTER("https://openrouter.ai/api/v1", "nvidia/nemotron-3-nano-30b-a3b:free", "nvidia/nemotron-nano-12b-v2-vl:free"),
-    // Sin API key real configurada todavía (catálogo "listo pero inerte"): modelo gratuito/rápido
-    // recomendado en la documentación pública de Groq al momento de escribir esto.
-    GROQ("https://api.groq.com/openai/v1", "llama-3.3-70b-versatile", null);
+    // El sufijo ":free" dejó de existir en OpenRouter y devuelve 404; el mismo slug sin sufijo sí
+    // responde. El de visión se cambia porque el nemotron-nano-12b-v2-vl que usaba antes fue dado
+    // de baja junto con la variante de NVIDIA.
+    OPENROUTER("https://openrouter.ai/api/v1", "nvidia/nemotron-3-nano-30b-a3b", "inclusionai/ling-3.0-flash-vl"),
+    // Groq no expone modelos de visión en su catálogo OpenAI-compatible, de ahí el null.
+    // "llama-3.3-70b-versatile" ya no está disponible (404).
+    GROQ("https://api.groq.com/openai/v1", "openai/gpt-oss-120b", null);
 
     private final String baseUrl;
     private final String defaultModel;
