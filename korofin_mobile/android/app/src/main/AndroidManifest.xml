@@ -1,4 +1,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- En debug Flutter la inyecta sola para su protocolo de depuración; en release no, así que
+         sin esto cualquier build de release queda sin acceso a red aunque el resto del dispositivo
+         (navegador, etc.) sí tenga internet. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <!-- Requerido por local_auth para el bloqueo de la app con huella o rostro. -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
     <!-- Requerido por image_picker para capturar fotos de recibos con la cámara. La galería no
