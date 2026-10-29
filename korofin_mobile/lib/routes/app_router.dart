@@ -11,6 +11,7 @@ import '../screens/dashboard/dashboard_screen.dart';
 import '../screens/debts_hub/debts_hub_screen.dart';
 import '../screens/import_statement/import_statement_screen.dart';
 import '../screens/movements/movements_screen.dart';
+import '../screens/nequi_capture/nequi_capture_permission_screen.dart';
 import '../screens/notifications/notifications_screen.dart';
 import '../screens/receipt_scan/receipt_scan_screen.dart';
 import '../screens/reports/reports_screen.dart';
@@ -103,6 +104,10 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/notifications', builder: (context, state) => const NotificationsScreen()),
       GoRoute(path: '/settings', builder: (context, state) => const SettingsScreen()),
+      GoRoute(
+        path: '/settings/nequi-capture',
+        builder: (context, state) => const NequiCapturePermissionScreen(),
+      ),
       GoRoute(path: '/categories', builder: (context, state) => const CategoriesScreen()),
       GoRoute(path: '/import-statement', builder: (context, state) => const ImportStatementScreen()),
       GoRoute(path: '/reports', builder: (context, state) => const ReportsScreen()),

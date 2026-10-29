@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'auth/biometric_authenticator.dart';
 import 'network/api_client.dart';
+import 'notifications/local_notifications_gateway.dart';
+import 'notifications/nequi_notification_gateway.dart';
 import 'storage/lock_store.dart';
 import 'storage/session_store.dart';
 
@@ -36,3 +38,16 @@ final apiClientProvider = Provider<ApiClient>((ref) {
   ref.onDispose(client.close);
   return client;
 });
+
+/// Listener de notificaciones del sistema para la captura de pagos de Nequi.
+/// Se sobreescribe en tests con un fake que no depende del plugin nativo.
+final nequiNotificationGatewayProvider = Provider<NequiNotificationGateway>(
+  (ref) => AndroidNequiNotificationGateway(),
+);
+
+/// Notificación local propia ("¿Registrar este movimiento?") usada para
+/// ofrecer el formulario pre-llenado aun con la app cerrada. Se sobreescribe
+/// en tests con un fake que no depende del plugin nativo.
+final localNotificationsGatewayProvider = Provider<LocalNotificationsGateway>(
+  (ref) => FlutterLocalNotificationsGateway(),
+);

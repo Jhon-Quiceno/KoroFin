@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/network/api_exception.dart';
 import '../../models/notification.dart';
@@ -142,6 +143,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const SectionCard(
             title: 'Notificaciones',
             child: _NotificationPreferencesSection(),
+          ),
+          const SizedBox(height: AppSpacing.lg),
+          SectionCard(
+            title: 'Captura automática',
+            child: _SettingsTile(
+              icon: Icons.sync_alt_outlined,
+              label: 'Captura automática de pagos (Nequi)',
+              onTap: () => context.push('/settings/nequi-capture'),
+            ),
           ),
           const SizedBox(height: AppSpacing.lg),
           const SectionCard(
