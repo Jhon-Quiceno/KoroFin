@@ -10,6 +10,7 @@ import '../../state/movements/movements_controller.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/common/empty_state.dart';
+import '../../widgets/common/offline_queue_banner.dart';
 import '../../widgets/list_items/movement_tile.dart';
 import '../../widgets/nav/app_header.dart';
 import '../quick_add/quick_add_sheet.dart';
@@ -48,6 +49,7 @@ class _MovementsScreenState extends ConsumerState<MovementsScreen>
             onNotificationsTap: () => context.push('/notifications'),
             onProfileTap: () => context.push('/settings'),
           ),
+          const OfflineQueueBanner(),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
             child: Row(
