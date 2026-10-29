@@ -36,6 +36,10 @@ abstract interface class OfflineQueueStore {
   /// Marca la entrada para confirmación manual (ver `QueuedMovement.needsConfirmation`).
   Future<void> markNeedsConfirmation(int id);
 
+  /// Marca que el backend ya creó el movimiento, para que un reintento
+  /// manual nunca vuelva a mandarlo (ver `QueuedMovement.alreadySent`).
+  Future<void> markAlreadySent(int id);
+
   /// Libera los recursos del almacenamiento. Sin esto el archivo de la base
   /// queda tomado por el proceso, algo que importa tanto en los tests (que
   /// borran su archivo temporal al terminar) como en cualquier reinicio del
@@ -63,7 +67,7 @@ class SqfliteOfflineQueueStore implements OfflineQueueStore {
         path ?? join(await getDatabasesPath(), 'korofin_offline_queue.db');
     final Database db = await openDatabase(
       dbPath,
-      version: 2,
+      version: 3,
       onCreate: (db, version) => db.execute(
         'CREATE TABLE $_table ('
         'id INTEGER PRIMARY KEY AUTOINCREMENT, '
@@ -76,13 +80,20 @@ class SqfliteOfflineQueueStore implements OfflineQueueStore {
         'payment_method TEXT, '
         'created_at TEXT NOT NULL, '
         'attempt_count INTEGER NOT NULL DEFAULT 0, '
-        'needs_confirmation INTEGER NOT NULL DEFAULT 0'
+        'needs_confirmation INTEGER NOT NULL DEFAULT 0, '
+        'already_sent INTEGER NOT NULL DEFAULT 0'
         ')',
       ),
       onUpgrade: (db, oldVersion, newVersion) async {
         if (oldVersion < 2) {
           await db.execute(
             'ALTER TABLE $_table ADD COLUMN needs_confirmation '
+            'INTEGER NOT NULL DEFAULT 0',
+          );
+        }
+        if (oldVersion < 3) {
+          await db.execute(
+            'ALTER TABLE $_table ADD COLUMN already_sent '
             'INTEGER NOT NULL DEFAULT 0',
           );
         }
@@ -150,6 +161,15 @@ class SqfliteOfflineQueueStore implements OfflineQueueStore {
   }
 
   @override
+  Future<void> markAlreadySent(int id) async {
+    final Database db = await _open();
+    await db.rawUpdate(
+      'UPDATE $_table SET needs_confirmation = 1, already_sent = 1 WHERE id = ?',
+      <Object?>[id],
+    );
+  }
+
+  @override
   Future<void> close() async {
     await _db?.close();
     _db = null;
@@ -162,6 +182,7 @@ class SqfliteOfflineQueueStore implements OfflineQueueStore {
       userId: row['user_id']! as int,
       type: MovementType.values.byName(row['kind']! as String),
       needsConfirmation: (row['needs_confirmation']! as int) != 0,
+      alreadySent: (row['already_sent']! as int) != 0,
       draft: MovementDraft(
         amount: (row['amount']! as num).toDouble(),
         date: DateTime.parse(row['date']! as String),
@@ -224,6 +245,13 @@ class InMemoryOfflineQueueStore implements OfflineQueueStore {
     final int index = _rows.indexWhere((row) => row.id == id);
     if (index == -1) return;
     _rows[index] = _rows[index].withNeedsConfirmation(true);
+  }
+
+  @override
+  Future<void> markAlreadySent(int id) async {
+    final int index = _rows.indexWhere((row) => row.id == id);
+    if (index == -1) return;
+    _rows[index] = _rows[index].withNeedsConfirmation(true, alreadySent: true);
   }
 
   @override

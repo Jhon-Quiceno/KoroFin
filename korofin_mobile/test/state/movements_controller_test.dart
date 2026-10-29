@@ -88,6 +88,17 @@ class _RejectingExpenseRepository extends _FakeExpenseRepository {
   }
 }
 
+/// Simula una falla de almacenamiento local (no de red) al encolar.
+class _ThrowingOfflineQueueStore extends InMemoryOfflineQueueStore {
+  @override
+  Future<int> enqueue(
+          {required int userId,
+          required MovementType type,
+          required MovementDraft draft,
+          required DateTime createdAt}) =>
+      throw StateError('disco lleno');
+}
+
 /// Contenedor con sesión iniciada y la cola offline apuntando a un store en
 /// memoria, para poder inspeccionar qué quedó encolado.
 ProviderContainer _offlineContainer(
@@ -238,5 +249,21 @@ void main() {
       throwsA(isA<ApiException>()),
     );
     expect(await store.pendingFor(7), isEmpty);
+  });
+
+  test(
+      'si falla hasta el encolado local, se propaga el error de red '
+      'original en vez del de almacenamiento',
+      () async {
+    final container =
+        _offlineContainer(_OfflineExpenseRepository(), _ThrowingOfflineQueueStore());
+    await container.read(movementsProvider(MovementType.expense).future);
+
+    await expectLater(
+      container
+          .read(movementsProvider(MovementType.expense).notifier)
+          .add(MovementDraft(amount: 100, date: DateTime(2026, 9, 1))),
+      throwsA(isA<ApiException>()),
+    );
   });
 }

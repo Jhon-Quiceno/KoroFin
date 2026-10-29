@@ -96,14 +96,20 @@ class MovementsController
       final int? userId = ref.read(authControllerProvider).user?.id;
       if (userId == null) rethrow;
 
-      if (arg == MovementType.expense) {
-        await ref
-            .read(offlineQueueRepositoryProvider)
-            .enqueueExpense(userId: userId, draft: draft);
-      } else {
-        await ref
-            .read(offlineQueueRepositoryProvider)
-            .enqueueIncome(userId: userId, draft: draft);
+      try {
+        if (arg == MovementType.expense) {
+          await ref
+              .read(offlineQueueRepositoryProvider)
+              .enqueueExpense(userId: userId, draft: draft);
+        } else {
+          await ref
+              .read(offlineQueueRepositoryProvider)
+              .enqueueIncome(userId: userId, draft: draft);
+        }
+      } catch (_) {
+        // No se pudo ni encolar localmente (falla de almacenamiento): mejor
+        // mostrar el error de red original que uno de storage sin manejar.
+        throw error;
       }
       unawaited(
         ref.read(offlineQueueControllerProvider.notifier).refreshPendingCount(),

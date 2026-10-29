@@ -45,6 +45,17 @@ class _UnusedIncomeRepository implements IncomeRepository {
 MovementDraft _draft() =>
     MovementDraft(amount: 1000, date: DateTime(2026, 9, 1));
 
+/// Simula que borrar de la cola local falla (I/O, disco lleno).
+class _RemoveFailingStore extends InMemoryOfflineQueueStore {
+  bool failNextRemove = true;
+
+  @override
+  Future<void> remove(int id) {
+    if (failNextRemove) throw StateError('disco lleno');
+    return super.remove(id);
+  }
+}
+
 void main() {
   test('una sincronización exitosa vacía la cola', () async {
     final store = InMemoryOfflineQueueStore();
@@ -282,6 +293,33 @@ void main() {
     final SyncResult manual =
         await repo.sync(1, includeHeldForConfirmation: true);
     expect(manual.synced, 1);
+    expect(await store.pendingFor(1), isEmpty);
+  });
+
+  test(
+      'si el backend ya creó el movimiento pero borrarlo de la cola local '
+      'falla, no se reintenta sola (evita un duplicado real)',
+      () async {
+    final store = _RemoveFailingStore();
+    await store.enqueue(
+        userId: 1,
+        type: MovementType.expense,
+        draft: _draft(),
+        createdAt: DateTime(2026, 9, 1));
+    final expenses = _ScriptedExpenseRepository(<Object>[]);
+    final repo =
+        OfflineQueueRepository(store, expenses, _UnusedIncomeRepository());
+
+    final SyncResult result = await repo.sync(1);
+
+    expect(result.synced, 0);
+    expect(result.heldForConfirmation, 1);
+    expect((await store.pendingFor(1)).single.alreadySent, isTrue);
+
+    store.failNextRemove = false;
+    final SyncResult manual = await repo.sync(1, includeHeldForConfirmation: true);
+    expect(manual.synced, 1);
+    expect(expenses.calls, 1); // nunca se mandó dos veces
     expect(await store.pendingFor(1), isEmpty);
   });
 

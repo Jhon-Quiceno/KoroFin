@@ -39,6 +39,9 @@ class SyncResult {
 ///   sí salió, no se sabe si el backend lo procesó. Se marca
 ///   `needsConfirmation` y sigue con el resto; solo un reintento manual la
 ///   vuelve a intentar.
+/// - **Borrado local fallido tras un envío exitoso**: el backend SÍ lo creó,
+///   solo falló sacarlo de la cola. Se marca `alreadySent`: un reintento
+///   manual solo reintenta el borrado, nunca vuelve a mandar el pedido.
 /// - **Fallo permanente del servidor** (400/404/409/422): el backend ya
 ///   respondió que el contenido en sí es inválido (ej. la categoría elegida
 ///   offline ya no existe). Reintentar nunca lo va a arreglar, así que esa
@@ -117,14 +120,34 @@ class OfflineQueueRepository {
 
     final List<QueuedMovement> queued = await _store.pendingFor(userId);
     for (final QueuedMovement item in queued) {
-      if (item.needsConfirmation && !includeHeldForConfirmation) {
-        heldForConfirmation++;
-        continue;
+      if (item.needsConfirmation) {
+        if (!includeHeldForConfirmation) {
+          heldForConfirmation++;
+          continue;
+        }
+        if (item.alreadySent) {
+          // El backend ya lo creó: nunca volver a mandarlo, solo reintentar
+          // el borrado local que había fallado.
+          try {
+            await _store.remove(item.id);
+            synced++;
+          } catch (_) {
+            heldForConfirmation++;
+          }
+          continue;
+        }
       }
       try {
         await _send(item);
-        await _store.remove(item.id);
-        synced++;
+        try {
+          await _store.remove(item.id);
+          synced++;
+        } catch (_) {
+          // El backend ya lo creó: si no se pudo borrar de la cola local,
+          // reintentar solo arriesga un duplicado real.
+          await _store.markAlreadySent(item.id);
+          heldForConfirmation++;
+        }
       } on ApiException catch (error) {
         if (error.isNetworkError) {
           if (error.ambiguousAfterSend) {

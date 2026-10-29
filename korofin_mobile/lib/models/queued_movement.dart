@@ -14,6 +14,7 @@ class QueuedMovement {
     required this.createdAt,
     this.attemptCount = 0,
     this.needsConfirmation = false,
+    this.alreadySent = false,
   });
 
   /// Id local de la fila en la cola. No tiene relación con el id que asigne
@@ -37,6 +38,11 @@ class QueuedMovement {
   /// sincronización automática no la reintenta sola, solo un reintento manual.
   final bool needsConfirmation;
 
+  /// `true` si el backend YA creó el movimiento y solo falló borrarlo de la
+  /// cola local: un reintento manual nunca debe volver a mandarlo, solo
+  /// reintentar el borrado (ver `OfflineQueueRepository`).
+  final bool alreadySent;
+
   QueuedMovement withAttempt(int count) => QueuedMovement(
         id: id,
         userId: userId,
@@ -45,9 +51,11 @@ class QueuedMovement {
         createdAt: createdAt,
         attemptCount: count,
         needsConfirmation: needsConfirmation,
+        alreadySent: alreadySent,
       );
 
-  QueuedMovement withNeedsConfirmation(bool value) => QueuedMovement(
+  QueuedMovement withNeedsConfirmation(bool value, {bool alreadySent = false}) =>
+      QueuedMovement(
         id: id,
         userId: userId,
         type: type,
@@ -55,5 +63,6 @@ class QueuedMovement {
         createdAt: createdAt,
         attemptCount: attemptCount,
         needsConfirmation: value,
+        alreadySent: alreadySent,
       );
 }
