@@ -48,6 +48,7 @@ class NequiCaptureController extends Notifier<PendingNequiMatch?> {
 
   Future<void> _init() async {
     await _localNotifications.initialize(onNotificationTap: _onNotificationTap);
+    await _localNotifications.requestPermission();
 
     final String? launchPayload = await _localNotifications.consumeLaunchPayload();
     final PendingNequiMatch? launchMatch = PendingNequiMatch.decode(launchPayload);
