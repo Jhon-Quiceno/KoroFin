@@ -1,12 +1,10 @@
 name: Deploy Backend
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - "korofin-backend/**"
-      - ".github/workflows/deploy-backend.yml"
+  # Disparo manual en vez de push automatico a main: el despliegue activo paso a ser el
+  # servidor propio (ver odd/tasks/despliegue-self-hosted.md). Cloud Run queda listo para
+  # reactivarse con un solo click desde la pestana Actions cuando haga falta.
+  workflow_dispatch:
   pull_request:
     branches:
       - main

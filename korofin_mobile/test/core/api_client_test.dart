@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:dio/io.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:korofin_mobile/core/network/api_client.dart';
 import 'package:korofin_mobile/core/network/api_exception.dart';
@@ -115,5 +116,44 @@ void main() {
         () => client.get('/api/expenses'), throwsA(isA<ApiException>()));
 
     expect(expired, isTrue);
+  });
+
+  group('certificate pinning', () {
+    test('con PINNED_CERT_SHA256 vacío no se toca el httpClientAdapter',
+        () async {
+      final adapter = CapturingAdapter(body: <String, dynamic>{'ok': true});
+      final Dio dio = Dio()..httpClientAdapter = adapter;
+
+      ApiClient(readAccessToken: () => null, dio: dio, pinnedCertSha256: '');
+
+      expect(dio.httpClientAdapter, same(adapter));
+    });
+
+    test('sin pasar pinnedCertSha256 tampoco se toca (default vacío en tests)',
+        () async {
+      final adapter = CapturingAdapter(body: <String, dynamic>{'ok': true});
+      final Dio dio = Dio()..httpClientAdapter = adapter;
+
+      ApiClient(readAccessToken: () => null, dio: dio);
+
+      expect(dio.httpClientAdapter, same(adapter));
+    });
+
+    test(
+        'con PINNED_CERT_SHA256 configurado, arma un IOHttpClientAdapter que '
+        'valida el certificado hoja contra el hash pineado', () {
+      final client = ApiClient(
+        readAccessToken: () => null,
+        pinnedCertSha256: 'a' * 64,
+      );
+
+      final adapter = client.dio.httpClientAdapter;
+      expect(adapter, isA<IOHttpClientAdapter>());
+
+      final validate = (adapter as IOHttpClientAdapter).validateCertificate;
+      expect(validate, isNotNull);
+      // Sin certificado (null) se rechaza por defecto: fail-closed.
+      expect(validate!(null, 'api.korofin.com', 443), isFalse);
+    });
   });
 }

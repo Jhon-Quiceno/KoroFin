@@ -37,6 +37,15 @@ public class RefreshToken {
     @Column(name = "token_id", nullable = false, unique = true)
     private UUID tokenId;
 
+    /**
+     * Identifica la cadena de rotación de una sesión de login: el primer token de una sesión
+     * genera un {@code familyId} nuevo (ver {@code RefreshTokenService#createForUser}) y cada
+     * rotación posterior lo propaga al token nuevo. Permite invalidar toda la sesión de una sola
+     * vez si se detecta reuso de un token ya rotado (indicio de robo).
+     */
+    @Column(name = "family_id", nullable = false)
+    private UUID familyId;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "user_id", nullable = false)
     private User user;

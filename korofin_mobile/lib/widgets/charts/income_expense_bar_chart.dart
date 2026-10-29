@@ -1,6 +1,7 @@
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 
+import '../../data/formatters.dart';
 import '../../theme/app_colors.dart';
 import '../../theme/app_theme.dart';
 
@@ -45,7 +46,24 @@ class IncomeExpenseBarChart extends StatelessWidget {
               ),
             ),
           ),
-          barTouchData: BarTouchData(enabled: true),
+          barTouchData: BarTouchData(
+            enabled: true,
+            touchTooltipData: BarTouchTooltipData(
+              // Por defecto fl_chart muestra `rod.toY.toString()` (ej.
+              // "4000000.0"); lo reemplazamos por el formato de moneda COP.
+              getTooltipItem: (group, groupIndex, rod, rodIndex) {
+                final color = rod.gradient?.colors.first ?? rod.color;
+                return BarTooltipItem(
+                  AppFormatters.currency(rod.toY),
+                  TextStyle(
+                    color: color,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                );
+              },
+            ),
+          ),
           barGroups: [
             for (int i = 0; i < data.length; i++)
               BarChartGroupData(

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -102,7 +103,7 @@ class _CategoryPickerSheet extends ConsumerWidget {
   }
 }
 
-class _PickerCell extends StatelessWidget {
+class _PickerCell extends StatefulWidget {
   const _PickerCell({
     required this.category,
     required this.selected,
@@ -114,11 +115,26 @@ class _PickerCell extends StatelessWidget {
   final VoidCallback onTap;
 
   @override
+  State<_PickerCell> createState() => _PickerCellState();
+}
+
+class _PickerCellState extends State<_PickerCell> {
+  bool _pressed = false;
+
+  // Breve feedback de selección (scale + highlight) antes de cerrar el sheet.
+  Future<void> _handleTap() async {
+    setState(() => _pressed = true);
+    await Future<void>.delayed(const Duration(milliseconds: 120));
+    if (!mounted) return;
+    widget.onTap();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final Color color = CategoryVisuals.colorFor(category);
+    final Color color = CategoryVisuals.colorFor(widget.category);
     return InkWell(
       borderRadius: BorderRadius.circular(AppRadii.md),
-      onTap: onTap,
+      onTap: _handleTap,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -126,15 +142,20 @@ class _PickerCell extends StatelessWidget {
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.14),
+              color: color.withValues(alpha: _pressed ? 0.28 : 0.14),
               shape: BoxShape.circle,
-              border: selected ? Border.all(color: color, width: 2) : null,
+              border: widget.selected ? Border.all(color: color, width: 2) : null,
             ),
-            child: Icon(CategoryVisuals.iconFor(category), color: color, size: 20),
-          ),
+            child: Icon(CategoryVisuals.iconFor(widget.category), color: color, size: 20),
+          ).animate(target: _pressed ? 1 : 0).scaleXY(
+                begin: 1,
+                end: 0.95,
+                duration: 120.ms,
+                curve: Curves.easeOut,
+              ),
           const SizedBox(height: 6),
           Text(
-            category.name,
+            widget.category.name,
             style: const TextStyle(fontSize: 11),
             textAlign: TextAlign.center,
             maxLines: 1,

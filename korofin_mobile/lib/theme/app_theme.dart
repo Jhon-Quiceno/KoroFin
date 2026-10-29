@@ -6,7 +6,7 @@ import 'app_text_styles.dart';
 
 /// Centralized light/dark ThemeData for KoroFin, replicating the v0
 /// "Premium Oscuro" design system (Mercury/Ramp/Linear-inspired fintech
-/// look: clean surfaces, bold high-contrast headers, a single red accent).
+/// look: clean surfaces, bold high-contrast headers, a single indigo accent).
 class AppTheme {
   AppTheme._();
 

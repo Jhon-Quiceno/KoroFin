@@ -1,0 +1,10 @@
+# Los scripts Unix del wrapper de Maven deben mantener LF siempre: Docker
+# corre Alpine Linux y un shebang con CRLF ("#!/bin/sh\r") rompe la build
+# con "not found" (exit 127), sin importar el autocrlf de quien clone.
+mvnw text eol=lf
+*.sh text eol=lf
+
+# El batch de Windows debe mantener CRLF.
+mvnw.cmd text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf

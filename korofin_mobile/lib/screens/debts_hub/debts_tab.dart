@@ -14,7 +14,9 @@ import 'new_debt_sheet.dart';
 class DebtsTab extends ConsumerWidget {
   const DebtsTab({super.key});
 
-  Future<void> _add(BuildContext context, WidgetRef ref) async {
+  /// Alta de deuda. Expuesto como estático para que el FAB contextual del
+  /// hub (`DebtsHubScreen`) pueda reusarlo sin duplicar el flujo.
+  static Future<void> add(BuildContext context, WidgetRef ref) async {
     final DebtFormData? data = await showNewDebtSheet(context);
     if (data == null) return;
     try {
@@ -36,59 +38,52 @@ class DebtsTab extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final AsyncValue<List<Debt>> debts = ref.watch(debtsProvider);
 
-    return Scaffold(
-      floatingActionButton: FloatingActionButton.small(
-        heroTag: 'add-debt',
-        onPressed: () => _add(context, ref),
-        child: const Icon(Icons.add),
+    return debts.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, _) => _ErrorView(
+        message: error is ApiException
+            ? error.message
+            : 'No se pudieron cargar las deudas.',
+        onRetry: () => ref.read(debtsProvider.notifier).refresh(),
       ),
-      body: debts.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => _ErrorView(
-          message: error is ApiException
-              ? error.message
-              : 'No se pudieron cargar las deudas.',
-          onRetry: () => ref.read(debtsProvider.notifier).refresh(),
-        ),
-        data: (list) {
-          if (list.isEmpty) {
-            return RefreshIndicator(
-              onRefresh: () => ref.read(debtsProvider.notifier).refresh(),
-              child: ListView(
-                children: [
-                  const SizedBox(height: AppSpacing.xxxl),
-                  EmptyState(
-                    icon: Icons.account_balance_wallet_outlined,
-                    title: 'Sin deudas activas',
-                    description: 'Registrá una deuda para hacerle seguimiento.',
-                    child: ElevatedButton(
-                      onPressed: () => _add(context, ref),
-                      child: const Text('Agregar deuda'),
-                    ),
-                  ),
-                ],
-              ),
-            );
-          }
+      data: (list) {
+        if (list.isEmpty) {
           return RefreshIndicator(
             onRefresh: () => ref.read(debtsProvider.notifier).refresh(),
-            child: ListView.separated(
-              padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, 96),
-              itemCount: list.length,
-              separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
-              itemBuilder: (context, index) => DebtTile(
-                debt: list[index],
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute<void>(
-                    builder: (_) => DebtDetailScreen(debtId: list[index].id),
+            child: ListView(
+              children: [
+                const SizedBox(height: AppSpacing.xxxl),
+                EmptyState(
+                  icon: Icons.account_balance_wallet_outlined,
+                  title: 'Sin deudas activas',
+                  description: 'Registrá una deuda para hacerle seguimiento.',
+                  child: ElevatedButton(
+                    onPressed: () => add(context, ref),
+                    child: const Text('Agregar deuda'),
                   ),
+                ),
+              ],
+            ),
+          );
+        }
+        return RefreshIndicator(
+          onRefresh: () => ref.read(debtsProvider.notifier).refresh(),
+          child: ListView.separated(
+            padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, 96),
+            itemCount: list.length,
+            separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.md),
+            itemBuilder: (context, index) => DebtTile(
+              debt: list[index],
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => DebtDetailScreen(debtId: list[index].id),
                 ),
               ),
             ),
-          );
-        },
-      ),
+          ),
+        );
+      },
     );
   }
 }

@@ -14,7 +14,7 @@ import 'new_subscription_sheet.dart';
 class SubscriptionsTab extends ConsumerWidget {
   const SubscriptionsTab({super.key});
 
-  Future<void> _guard(
+  static Future<void> _guard(
       BuildContext context, Future<void> Function() action) async {
     try {
       await action();
@@ -26,7 +26,9 @@ class SubscriptionsTab extends ConsumerWidget {
     }
   }
 
-  Future<void> _add(BuildContext context, WidgetRef ref) async {
+  /// Alta de servicio. Expuesto como estático para que el FAB contextual del
+  /// hub (`DebtsHubScreen`) pueda reusarlo sin duplicar el flujo.
+  static Future<void> add(BuildContext context, WidgetRef ref) async {
     final RecurringFormData? data = await showNewSubscriptionSheet(context);
     if (data == null || !context.mounted) return;
     await _guard(
@@ -62,89 +64,82 @@ class SubscriptionsTab extends ConsumerWidget {
         ref.watch(recurringPaymentsProvider);
     final notifier = ref.read(recurringPaymentsProvider.notifier);
 
-    return Scaffold(
-      floatingActionButton: FloatingActionButton.small(
-        heroTag: 'add-subscription',
-        onPressed: () => _add(context, ref),
-        child: const Icon(Icons.add),
+    return payments.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, _) => _ErrorView(
+        message: error is ApiException
+            ? error.message
+            : 'No se pudieron cargar los servicios.',
+        onRetry: notifier.refresh,
       ),
-      body: payments.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, _) => _ErrorView(
-          message: error is ApiException
-              ? error.message
-              : 'No se pudieron cargar los servicios.',
-          onRetry: notifier.refresh,
-        ),
-        data: (list) {
-          if (list.isEmpty) {
-            return RefreshIndicator(
-              onRefresh: notifier.refresh,
-              child: ListView(children: [
-                const SizedBox(height: AppSpacing.xxxl),
-                EmptyState(
-                  icon: Icons.subscriptions_outlined,
-                  title: 'Sin servicios registrados',
-                  description:
-                      'Agregá tus pagos recurrentes para no olvidarlos.',
-                  child: ElevatedButton(
-                      onPressed: () => _add(context, ref),
-                      child: const Text('Agregar servicio')),
-                ),
-              ]),
-            );
-          }
+      data: (list) {
+        if (list.isEmpty) {
           return RefreshIndicator(
             onRefresh: notifier.refresh,
-            child: ListView.separated(
-              padding: const EdgeInsets.fromLTRB(
-                  AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, 96),
-              itemCount: list.length,
-              separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
-              itemBuilder: (context, index) {
-                final RecurringPayment p = list[index];
-                return Dismissible(
-                  key: ValueKey<int>(p.id),
-                  direction: DismissDirection.endToStart,
-                  background: Container(
-                    alignment: Alignment.centerRight,
-                    padding: const EdgeInsets.only(right: AppSpacing.lg),
-                    color: Theme.of(context)
-                        .colorScheme
-                        .error
-                        .withValues(alpha: 0.15),
-                    child: Icon(Icons.delete_outline,
-                        color: Theme.of(context).colorScheme.error),
-                  ),
-                  confirmDismiss: (_) => showDialog<bool>(
-                    context: context,
-                    builder: (context) => AlertDialog(
-                      title: Text('¿Borrar "${p.name}"?'),
-                      actions: [
-                        TextButton(
-                            onPressed: () => Navigator.of(context).pop(false),
-                            child: const Text('Cancelar')),
-                        FilledButton(
-                            onPressed: () => Navigator.of(context).pop(true),
-                            child: const Text('Borrar')),
-                      ],
-                    ),
-                  ),
-                  onDismissed: (_) =>
-                      _guard(context, () => notifier.remove(p.id)),
-                  child: SubscriptionTile(
-                    payment: p,
-                    onTap: () => _edit(context, ref, p),
-                    onPay: () => _guard(context, () => notifier.pay(p.id)),
-                    onToggle: () =>
-                        _guard(context, () => notifier.toggle(p.id)),
-                  ),
-                );
-              },
-            ),
+            child: ListView(children: [
+              const SizedBox(height: AppSpacing.xxxl),
+              EmptyState(
+                icon: Icons.subscriptions_outlined,
+                title: 'Sin servicios registrados',
+                description:
+                    'Agregá tus pagos recurrentes para no olvidarlos.',
+                child: ElevatedButton(
+                    onPressed: () => add(context, ref),
+                    child: const Text('Agregar servicio')),
+              ),
+            ]),
           );
-        },
-      ),
+        }
+        return RefreshIndicator(
+          onRefresh: notifier.refresh,
+          child: ListView.separated(
+            padding: const EdgeInsets.fromLTRB(
+                AppSpacing.lg, AppSpacing.lg, AppSpacing.lg, 96),
+            itemCount: list.length,
+            separatorBuilder: (_, _) => const SizedBox(height: AppSpacing.sm),
+            itemBuilder: (context, index) {
+              final RecurringPayment p = list[index];
+              return Dismissible(
+                key: ValueKey<int>(p.id),
+                direction: DismissDirection.endToStart,
+                background: Container(
+                  alignment: Alignment.centerRight,
+                  padding: const EdgeInsets.only(right: AppSpacing.lg),
+                  color: Theme.of(context)
+                      .colorScheme
+                      .error
+                      .withValues(alpha: 0.15),
+                  child: Icon(Icons.delete_outline,
+                      color: Theme.of(context).colorScheme.error),
+                ),
+                confirmDismiss: (_) => showDialog<bool>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: Text('¿Borrar "${p.name}"?'),
+                    actions: [
+                      TextButton(
+                          onPressed: () => Navigator.of(context).pop(false),
+                          child: const Text('Cancelar')),
+                      FilledButton(
+                          onPressed: () => Navigator.of(context).pop(true),
+                          child: const Text('Borrar')),
+                    ],
+                  ),
+                ),
+                onDismissed: (_) =>
+                    _guard(context, () => notifier.remove(p.id)),
+                child: SubscriptionTile(
+                  payment: p,
+                  onTap: () => _edit(context, ref, p),
+                  onPay: () => _guard(context, () => notifier.pay(p.id)),
+                  onToggle: () =>
+                      _guard(context, () => notifier.toggle(p.id)),
+                ),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 }

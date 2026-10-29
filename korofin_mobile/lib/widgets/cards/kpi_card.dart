@@ -24,7 +24,7 @@ class KpiCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final koro = context.koroColors;
     return Container(
-      padding: const EdgeInsets.all(AppSpacing.lg),
+      padding: const EdgeInsets.all(AppSpacing.md),
       decoration: BoxDecoration(
         color: koro.surface,
         borderRadius: BorderRadius.circular(AppRadii.lg),
@@ -39,7 +39,7 @@ class KpiCard extends StatelessWidget {
             decoration: BoxDecoration(color: color.withValues(alpha: 0.14), borderRadius: BorderRadius.circular(AppRadii.sm)),
             child: Icon(icon, size: 16, color: color),
           ),
-          const SizedBox(height: AppSpacing.md),
+          const SizedBox(height: AppSpacing.sm),
           Text(label, style: Theme.of(context).textTheme.bodyMedium),
           const SizedBox(height: 2),
           Text(value, style: Theme.of(context).textTheme.titleLarge, maxLines: 1, overflow: TextOverflow.ellipsis),

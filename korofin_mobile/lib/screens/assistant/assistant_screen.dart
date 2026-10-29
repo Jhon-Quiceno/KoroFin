@@ -76,7 +76,6 @@ class _AssistantScreenState extends ConsumerState<AssistantScreen> {
           subtitle: usageLabel,
           onNotificationsTap: () => context.push('/notifications'),
           onProfileTap: () => context.push('/settings'),
-          onSettingsTap: () => context.push('/settings'),
         ),
         if (!providerOk)
           Container(

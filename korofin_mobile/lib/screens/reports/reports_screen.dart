@@ -1,6 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../core/network/api_exception.dart';
 import '../../data/formatters.dart';
@@ -15,11 +19,47 @@ import '../../widgets/charts/trend_line_chart.dart';
 
 /// Pantalla 12 — Reportes: selector de mes, KPIs, tendencia de ahorro de 6
 /// meses y la tabla de movimientos del período.
-class ReportsScreen extends ConsumerWidget {
+class ReportsScreen extends ConsumerStatefulWidget {
   const ReportsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ReportsScreen> createState() => _ReportsScreenState();
+}
+
+class _ReportsScreenState extends ConsumerState<ReportsScreen> {
+  bool _exporting = false;
+
+  Future<void> _export(DateTime month) async {
+    setState(() => _exporting = true);
+    try {
+      final DateTime from = DateTime(month.year, month.month);
+      final DateTime to = DateTime(month.year, month.month + 1, 0);
+      final String csv = await ref
+          .read(reportRepositoryProvider)
+          .exportCsv(from: from, to: to);
+
+      final Directory dir = await getTemporaryDirectory();
+      final String fileName =
+          'korofin-reporte-${DateFormat('yyyy-MM').format(month)}.csv';
+      final File file = File('${dir.path}/$fileName');
+      await file.writeAsString(csv);
+
+      if (!mounted) return;
+      await SharePlus.instance.share(
+        ShareParams(files: [XFile(file.path)], fileNameOverrides: [fileName]),
+      );
+    } on ApiException catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text(e.message)));
+      }
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final DateTime month = ref.watch(selectedReportMonthProvider);
     final AsyncValue<ReportData> report = ref.watch(reportProvider);
     final AsyncValue<List<MonthlyTotal>> trend = ref.watch(reportTrendProvider);
@@ -34,7 +74,22 @@ class ReportsScreen extends ConsumerWidget {
     );
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Reportes')),
+      appBar: AppBar(
+        title: const Text('Reportes'),
+        actions: [
+          IconButton(
+            tooltip: 'Exportar reporte',
+            onPressed: _exporting ? null : () => _export(month),
+            icon: _exporting
+                ? const SizedBox(
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.download_outlined),
+          ),
+        ],
+      ),
       body: report.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (error, _) => _ErrorView(
@@ -73,7 +128,7 @@ class ReportsScreen extends ConsumerWidget {
               physics: const NeverScrollableScrollPhysics(),
               mainAxisSpacing: AppSpacing.md,
               crossAxisSpacing: AppSpacing.md,
-              childAspectRatio: 1.5,
+              childAspectRatio: 1.2,
               children: [
                 KpiCard(
                   label: 'Ingresos',

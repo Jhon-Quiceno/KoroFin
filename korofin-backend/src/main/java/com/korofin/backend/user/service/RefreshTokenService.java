@@ -22,10 +22,14 @@ import java.util.UUID;
  * JWT en texto plano) — comparar hashes evita que una fuga de la base de datos por sí sola
  * permita reconstruir tokens válidos.
  *
- * <p>TODO(seguridad): el plan del backend (sección 3.2) sugiere, como mejora razonable para una
- * app financiera (no un requisito estricto de MVP), detectar reuso de un refresh token ya rotado
- * (invalidar toda la familia de tokens de esa sesión) y permitir listar/revocar sesiones activas
- * por dispositivo. Ninguna de las dos está implementada todavía.
+ * <p>Cada sesión de login tiene un {@code familyId} propio que se propaga a lo largo de toda su
+ * cadena de rotaciones ({@link RefreshToken#getFamilyId()}). Si se presenta un token ya rotado
+ * (revocado pero por lo demás válido), es indicio de que fue robado y usado después de que el
+ * dueño legítimo ya lo rotó: se revoca toda la familia para forzar re-login tanto del atacante
+ * como de la sesión legítima comprometida, en vez de responder solo con un 401 silencioso.
+ *
+ * <p>TODO(seguridad): el plan del backend (sección 3.2) también sugiere permitir listar/revocar
+ * sesiones activas por dispositivo. No está implementado todavía.
  */
 @Service
 public class RefreshTokenService {
@@ -40,12 +44,21 @@ public class RefreshTokenService {
 
     @Transactional
     public String createForUser(User user, boolean rememberMe) {
+        return createForUser(user, rememberMe, UUID.randomUUID());
+    }
+
+    /**
+     * Crea un refresh token dentro de una familia existente (usado por {@link #rotate}) o de una
+     * nueva (login inicial de una sesión).
+     */
+    private String createForUser(User user, boolean rememberMe, UUID familyId) {
         UUID tokenId = UUID.randomUUID();
         String rawToken = jwtService.generateRefreshToken(user, tokenId);
         Claims claims = jwtService.parseRefreshToken(rawToken);
 
         RefreshToken refreshToken = new RefreshToken();
         refreshToken.setTokenId(tokenId);
+        refreshToken.setFamilyId(familyId);
         refreshToken.setUser(user);
         refreshToken.setTokenHash(hashToken(rawToken));
         refreshToken.setCreatedAt(Instant.now());
@@ -58,7 +71,7 @@ public class RefreshTokenService {
 
     /**
      * Revoca el token presentado y emite uno nuevo para el mismo usuario, propagando
-     * {@link RefreshToken#isRememberMe()} del token guardado.
+     * {@link RefreshToken#isRememberMe()} y {@link RefreshToken#getFamilyId()} del token guardado.
      */
     @Transactional
     public RotationResult rotate(String rawToken) {
@@ -67,7 +80,7 @@ public class RefreshTokenService {
         refreshTokenRepository.save(stored);
 
         boolean rememberMe = stored.isRememberMe();
-        String newRefreshToken = createForUser(stored.getUser(), rememberMe);
+        String newRefreshToken = createForUser(stored.getUser(), rememberMe, stored.getFamilyId());
         return new RotationResult(stored.getUser(), newRefreshToken, rememberMe);
     }
 
@@ -109,7 +122,12 @@ public class RefreshTokenService {
         );
 
         if (refreshToken.getRevokedAt() != null) {
-            throw new InvalidRefreshTokenException("Refresh token revocado");
+            // El token en sí es válido (firma correcta, no expirado) pero ya fue rotado: que lo
+            // presenten de nuevo es indicio de robo/reuso, no un error transitorio del cliente. Se
+            // corta toda la familia (sesión) para forzar re-login del atacante y del dueño
+            // legítimo, en vez de devolver solo un 401 silencioso.
+            refreshTokenRepository.revokeAllActiveForFamily(refreshToken.getFamilyId(), Instant.now());
+            throw new InvalidRefreshTokenException("Refresh token reutilizado: se revocó toda la sesión");
         }
 
         if (refreshToken.getExpiresAt().isBefore(Instant.now())) {

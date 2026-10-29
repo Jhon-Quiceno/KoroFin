@@ -92,7 +92,7 @@ class _NewCardSheetState extends State<_NewCardSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(_isEdit ? 'Editar tarjeta' : 'Nueva tarjeta de crédito',
+              Text(_isEdit ? 'Editar tarjeta' : 'Nueva tarjeta',
                   style: Theme.of(context).textTheme.titleLarge),
               const SizedBox(height: AppSpacing.lg),
               TextField(

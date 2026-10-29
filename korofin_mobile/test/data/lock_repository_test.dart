@@ -3,6 +3,8 @@ import 'package:korofin_mobile/core/auth/biometric_authenticator.dart';
 import 'package:korofin_mobile/core/storage/lock_store.dart';
 import 'package:korofin_mobile/data/repositories/lock_repository.dart';
 
+// hashPinForTest está anotado @visibleForTesting en lock_repository.dart.
+
 class _FakeBiometricAuthenticator implements BiometricAuthenticator {
   bool available = true;
   bool succeeds = true;
@@ -65,11 +67,37 @@ void main() {
   test('el mismo PIN genera hashes distintos por la sal aleatoria', () async {
     await repo.enableWithPin('1234');
     final String? firstHash = await store.readPinHash();
+    final String? firstSalt = await store.readSalt();
 
     await repo.enableWithPin('1234');
     final String? secondHash = await store.readPinHash();
+    final String? secondSalt = await store.readSalt();
 
+    expect(firstSalt, isNot(secondSalt));
     expect(firstHash, isNot(secondHash));
+  });
+
+  group('hashPinForTest (PBKDF2-HMAC-SHA256)', () {
+    test('mismo PIN + misma sal producen siempre el mismo hash', () {
+      final String hashA = hashPinForTest('1234', 'la-misma-sal');
+      final String hashB = hashPinForTest('1234', 'la-misma-sal');
+
+      expect(hashA, hashB);
+    });
+
+    test('PINs distintos con la misma sal producen hashes distintos', () {
+      final String hashA = hashPinForTest('1234', 'la-misma-sal');
+      final String hashB = hashPinForTest('5678', 'la-misma-sal');
+
+      expect(hashA, isNot(hashB));
+    });
+
+    test('el mismo PIN con sales distintas produce hashes distintos', () {
+      final String hashA = hashPinForTest('1234', 'sal-a');
+      final String hashB = hashPinForTest('1234', 'sal-b');
+
+      expect(hashA, isNot(hashB));
+    });
   });
 
   test('enableWithPin rechaza PINs que no son 4 dígitos numéricos', () async {
