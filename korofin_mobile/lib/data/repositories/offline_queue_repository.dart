@@ -7,12 +7,20 @@ import 'income_repository.dart';
 
 /// Resultado de una corrida de sincronización.
 class SyncResult {
-  const SyncResult({required this.synced, required this.discarded});
+  const SyncResult({
+    required this.synced,
+    required this.discarded,
+    this.heldForConfirmation = 0,
+  });
 
   final int synced;
   final int discarded;
 
-  bool get hadActivity => synced > 0 || discarded > 0;
+  /// Ambiguas (ver `ApiException.ambiguousAfterSend`), a la espera de
+  /// confirmación manual del usuario antes de reintentar.
+  final int heldForConfirmation;
+
+  bool get hadActivity => synced > 0 || discarded > 0 || heldForConfirmation > 0;
 }
 
 /// Cola de altas de gasto/ingreso creadas sin conexión (alcance acotado: solo
@@ -27,6 +35,10 @@ class SyncResult {
 ///   ni las siguientes entradas van a poder sincronizar ahora mismo. Se
 ///   detiene todo el drenado en ese punto, preservando el orden FIFO para el
 ///   próximo intento (reconexión o re-login).
+/// - **Timeout de recepción** (`ApiException.ambiguousAfterSend`): el pedido
+///   sí salió, no se sabe si el backend lo procesó. Se marca
+///   `needsConfirmation` y sigue con el resto; solo un reintento manual la
+///   vuelve a intentar.
 /// - **Fallo permanente del servidor** (400/404/409/422): el backend ya
 ///   respondió que el contenido en sí es inválido (ej. la categoría elegida
 ///   offline ya no existe). Reintentar nunca lo va a arreglar, así que esa
@@ -91,22 +103,38 @@ class OfflineQueueRepository {
   /// la cola — evita mandar el mismo movimiento dos veces al backend. Mismo
   /// mecanismo de single-flight que usa `ApiClient` para el refresh de
   /// sesión.
-  Future<SyncResult> sync(int userId) {
-    return _inFlight ??= _runSync(userId).whenComplete(() => _inFlight = null);
+  /// [includeHeldForConfirmation] en `true` también reintenta las entradas
+  /// `needsConfirmation` (solo debe venir de un reintento manual).
+  Future<SyncResult> sync(int userId, {bool includeHeldForConfirmation = false}) {
+    return _inFlight ??= _runSync(userId, includeHeldForConfirmation)
+        .whenComplete(() => _inFlight = null);
   }
 
-  Future<SyncResult> _runSync(int userId) async {
+  Future<SyncResult> _runSync(int userId, bool includeHeldForConfirmation) async {
     int synced = 0;
     int discarded = 0;
+    int heldForConfirmation = 0;
 
     final List<QueuedMovement> queued = await _store.pendingFor(userId);
     for (final QueuedMovement item in queued) {
+      if (item.needsConfirmation && !includeHeldForConfirmation) {
+        heldForConfirmation++;
+        continue;
+      }
       try {
         await _send(item);
         await _store.remove(item.id);
         synced++;
       } on ApiException catch (error) {
-        if (error.isNetworkError || error.isUnauthorized) {
+        if (error.isNetworkError) {
+          if (error.ambiguousAfterSend) {
+            await _store.markNeedsConfirmation(item.id);
+            heldForConfirmation++;
+            continue;
+          }
+          break;
+        }
+        if (error.isUnauthorized) {
           break;
         }
         if (_isPermanentFailure(error)) {
@@ -123,7 +151,11 @@ class OfflineQueueRepository {
       }
     }
 
-    return SyncResult(synced: synced, discarded: discarded);
+    return SyncResult(
+      synced: synced,
+      discarded: discarded,
+      heldForConfirmation: heldForConfirmation,
+    );
   }
 
   bool _isPermanentFailure(ApiException error) =>

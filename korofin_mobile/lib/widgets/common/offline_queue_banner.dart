@@ -15,9 +15,21 @@ class OfflineQueueBanner extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final OfflineQueueState state = ref.watch(offlineQueueControllerProvider);
-    if (!state.hasPending) return const SizedBox.shrink();
+    final bool hasDiscarded = state.lastDiscardedCount > 0;
+    if (!state.hasPending && !hasDiscarded) return const SizedBox.shrink();
 
     final koro = context.koroColors;
+    final String message = state.syncing
+        ? 'Sincronizando ${state.pendingCount} movimiento(s)...'
+        : hasDiscarded
+            ? '${state.lastDiscardedCount} movimiento(s) no se pudieron '
+                'sincronizar y se perdieron. Volvé a registrarlos.'
+            : state.heldForConfirmationCount > 0
+                ? '${state.heldForConfirmationCount} movimiento(s) necesitan '
+                    'tu confirmación para reintentar (puede que ya se hayan '
+                    'registrado).'
+                : '${state.pendingCount} movimiento(s) sin sincronizar';
+
     return Padding(
       padding: const EdgeInsets.fromLTRB(
           AppSpacing.lg, 0, AppSpacing.lg, AppSpacing.md),
@@ -35,9 +47,7 @@ class OfflineQueueBanner extends ConsumerWidget {
             const SizedBox(width: AppSpacing.sm),
             Expanded(
               child: Text(
-                state.syncing
-                    ? 'Sincronizando ${state.pendingCount} movimiento(s)...'
-                    : '${state.pendingCount} movimiento(s) sin sincronizar',
+                message,
                 style: TextStyle(
                   color: koro.warning,
                   fontWeight: FontWeight.w600,
@@ -51,7 +61,7 @@ class OfflineQueueBanner extends ConsumerWidget {
                 height: 16,
                 child: CircularProgressIndicator(strokeWidth: 2),
               )
-            else
+            else if (state.hasPending)
               TextButton(
                 onPressed: () =>
                     ref.read(offlineQueueControllerProvider.notifier).syncNow(),

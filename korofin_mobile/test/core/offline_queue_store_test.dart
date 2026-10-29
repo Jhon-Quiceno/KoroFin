@@ -168,4 +168,22 @@ void main() {
     final QueuedMovement pending = (await store.pendingFor(1)).single;
     expect(pending.attemptCount, 2);
   });
+
+  test(
+      'markNeedsConfirmation persiste la marca, incluso tras recrear el store',
+      () async {
+    final store = openStore();
+    final int id = await store.enqueue(
+      userId: 1,
+      type: MovementType.expense,
+      draft: draftOf(),
+      createdAt: DateTime(2026, 9, 1),
+    );
+    expect((await store.pendingFor(1)).single.needsConfirmation, isFalse);
+
+    await store.markNeedsConfirmation(id);
+
+    final reopened = openStore();
+    expect((await reopened.pendingFor(1)).single.needsConfirmation, isTrue);
+  });
 }

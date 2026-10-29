@@ -8,6 +8,7 @@ class ApiException implements Exception {
     required this.message,
     this.statusCode,
     this.isNetworkError = false,
+    this.ambiguousAfterSend = false,
   });
 
   /// Mensaje listo para mostrar al usuario. Si el backend mandó un `message` en
@@ -19,6 +20,10 @@ class ApiException implements Exception {
 
   /// `true` cuando no hubo respuesta del servidor (sin red, backend caído, DNS).
   final bool isNetworkError;
+
+  /// `true` solo si la request salió al servidor pero no llegó la respuesta
+  /// (timeout de recepción): reintentar a ciegas puede duplicar el movimiento.
+  final bool ambiguousAfterSend;
 
   /// Un 401/403 que la capa de sesión puede intentar recuperar con un refresh.
   bool get isUnauthorized => statusCode == 401 || statusCode == 403;

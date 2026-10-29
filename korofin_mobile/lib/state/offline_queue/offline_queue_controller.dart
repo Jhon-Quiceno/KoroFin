@@ -64,19 +64,28 @@ class OfflineQueueController extends Notifier<OfflineQueueState> {
     state = state.copyWith(pendingCount: count);
   }
 
-  /// Sincronización manual (botón "Sincronizar" del aviso de pendientes).
-  Future<void> syncNow() => _syncCurrentUser();
+  /// Sincronización manual: a diferencia de la automática, el tap del
+  /// usuario también confirma los reintentos ambiguos retenidos.
+  Future<void> syncNow() => _syncCurrentUser(includeHeldForConfirmation: true);
 
-  Future<void> _syncCurrentUser() async {
+  Future<void> _syncCurrentUser({bool includeHeldForConfirmation = false}) async {
     final int? userId = ref.read(authControllerProvider).user?.id;
     if (userId == null) return;
     if (!await ref.read(connectivityGatewayProvider).hasConnection()) return;
 
     state = state.copyWith(syncing: true);
-    await ref.read(offlineQueueRepositoryProvider).sync(userId);
+    final result = await ref.read(offlineQueueRepositoryProvider).sync(
+          userId,
+          includeHeldForConfirmation: includeHeldForConfirmation,
+        );
     final int count =
         await ref.read(offlineQueueRepositoryProvider).pendingCount(userId);
-    state = state.copyWith(syncing: false, pendingCount: count);
+    state = state.copyWith(
+      syncing: false,
+      pendingCount: count,
+      lastDiscardedCount: result.discarded,
+      heldForConfirmationCount: result.heldForConfirmation,
+    );
 
     // Los listados de movimientos ya pintados pueden haber quedado
     // desactualizados si algo se sincronizó recién.

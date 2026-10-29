@@ -254,6 +254,37 @@ void main() {
     expect(expenses.calls, 1);
   });
 
+  test(
+      'una falla ambigua tras enviar el pedido (timeout de recepción) no se '
+      'reintenta sola: queda a la espera de confirmación manual',
+      () async {
+    final store = InMemoryOfflineQueueStore();
+    await store.enqueue(
+        userId: 1,
+        type: MovementType.expense,
+        draft: _draft(),
+        createdAt: DateTime(2026, 9, 1));
+    final expenses = _ScriptedExpenseRepository(<Object>[
+      const ApiException(
+          message: 'timeout', isNetworkError: true, ambiguousAfterSend: true),
+    ]);
+    final repo =
+        OfflineQueueRepository(store, expenses, _UnusedIncomeRepository());
+
+    final SyncResult first = await repo.sync(1);
+    expect(first.heldForConfirmation, 1);
+    expect((await store.pendingFor(1)).single.needsConfirmation, isTrue);
+
+    final SyncResult second = await repo.sync(1); // reconexión automática
+    expect(second.heldForConfirmation, 1);
+    expect(expenses.calls, 1); // no se reintentó sola
+
+    final SyncResult manual =
+        await repo.sync(1, includeHeldForConfirmation: true);
+    expect(manual.synced, 1);
+    expect(await store.pendingFor(1), isEmpty);
+  });
+
   test('el scoping por userId aísla la sincronización entre usuarios',
       () async {
     final store = InMemoryOfflineQueueStore();

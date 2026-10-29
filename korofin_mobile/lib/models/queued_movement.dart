@@ -13,6 +13,7 @@ class QueuedMovement {
     required this.draft,
     required this.createdAt,
     this.attemptCount = 0,
+    this.needsConfirmation = false,
   });
 
   /// Id local de la fila en la cola. No tiene relación con el id que asigne
@@ -32,6 +33,10 @@ class QueuedMovement {
   /// `OfflineQueueRepository`.
   final int attemptCount;
 
+  /// `true` si una falla ambigua deja sin saber si ya se procesó: la
+  /// sincronización automática no la reintenta sola, solo un reintento manual.
+  final bool needsConfirmation;
+
   QueuedMovement withAttempt(int count) => QueuedMovement(
         id: id,
         userId: userId,
@@ -39,5 +44,16 @@ class QueuedMovement {
         draft: draft,
         createdAt: createdAt,
         attemptCount: count,
+        needsConfirmation: needsConfirmation,
+      );
+
+  QueuedMovement withNeedsConfirmation(bool value) => QueuedMovement(
+        id: id,
+        userId: userId,
+        type: type,
+        draft: draft,
+        createdAt: createdAt,
+        attemptCount: attemptCount,
+        needsConfirmation: value,
       );
 }
