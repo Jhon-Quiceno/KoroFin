@@ -53,6 +53,11 @@ dependencies:
   # Captura de recibos con la camara / galeria.
   image_picker: ^1.1.2
 
+  # Captura de notificaciones de pago (Nequi, Android-only) y notificacion
+  # local propia para ofrecer el formulario pre-llenado.
+  notification_listener_service: ^0.3.3
+  flutter_local_notifications: ^18.0.1
+
   # Seleccion de archivos de extractos bancarios (PDF/CSV/XLSX).
   file_picker: ^8.1.6
   flutter_animate: ^4.5.2
