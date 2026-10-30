@@ -1,16 +1,13 @@
 name: Deploy Backend
 
 on:
-  # Disparo manual en vez de push automatico a main: el despliegue activo paso a ser el
-  # servidor propio (ver odd/tasks/despliegue-self-hosted.md). Cloud Run queda listo para
+  # Disparo manual en vez de push/PR automatico: el despliegue activo paso a ser
+  # Render (ver odd/tasks/migracion-render.md). Cloud Run queda listo para
   # reactivarse con un solo click desde la pestana Actions cuando haga falta.
+  # Sin trigger automatico porque las credenciales GCP_WORKLOAD_IDENTITY_PROVIDER/
+  # GCP_SERVICE_ACCOUNT ya no existen en los secrets del repo: un trigger en
+  # pull_request/push fallaria siempre sin aportar nada.
   workflow_dispatch:
-  pull_request:
-    branches:
-      - main
-    paths:
-      - "korofin-backend/**"
-      - ".github/workflows/deploy-backend.yml"
 
 permissions:
   contents: read
@@ -93,22 +90,7 @@ jobs:
           TELEGRAM_WEBHOOK_SECRET: "${{ secrets.TELEGRAM_WEBHOOK_SECRET }}"
           EOF
 
-      # En un PR: despliega una revision real (prueba que auth+build+deploy funcionan) pero nunca
-      # le mueve trafico, para poder validar un PR con seguridad antes de mergear.
-      - name: Deploy to Cloud Run (validate only, no traffic)
-        if: github.event_name == 'pull_request'
-        run: |
-          gcloud run deploy korofin-backend \
-            --source ./korofin-backend \
-            --region us-central1 \
-            --memory 1Gi \
-            --allow-unauthenticated \
-            --no-traffic \
-            --tag "pr-${{ github.event.pull_request.number }}" \
-            --env-vars-file=/tmp/cloud-run-env-vars.yaml
-
       - name: Deploy to Cloud Run (production)
-        if: github.event_name == 'push'
         run: |
           gcloud run deploy korofin-backend \
             --source ./korofin-backend \
@@ -117,11 +99,7 @@ jobs:
             --allow-unauthenticated \
             --env-vars-file=/tmp/cloud-run-env-vars.yaml
 
-      # Una vez que algun deploy usa --no-traffic (la validacion de PR de arriba), Cloud Run fija
-      # el trafico a una revision especifica en vez de seguir LATEST. Forzarlo de nuevo tras cada
-      # deploy de produccion.
       - name: Route traffic to latest revision
-        if: github.event_name == 'push'
         run: |
           gcloud run services update-traffic korofin-backend \
             --region us-central1 \
