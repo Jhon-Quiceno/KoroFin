@@ -21,7 +21,7 @@ final lockControllerProvider =
 
 /// Orquesta el bloqueo opt-in de la app: carga la preferencia guardada,
 /// bloquea automáticamente al volver del background (si está habilitado y hay
-/// sesión activa) y expone el desbloqueo por PIN o biometría.
+/// sesión activa) y expone el desbloqueo por biometría.
 ///
 /// Se suscribe como [WidgetsBindingObserver] en lugar de en un [State] porque
 /// el bloqueo debe activarse sin importar qué pantalla esté montada.
@@ -56,26 +56,16 @@ class LockController extends Notifier<AppLockState> with WidgetsBindingObserver 
 
   Future<bool> isBiometricAvailable() => _repo.isBiometricAvailable();
 
-  /// Tiempo restante del lockout de PIN vigente, o `null` si se puede
-  /// reintentar. No afecta a la biometría, que es un canal aparte.
-  Future<Duration?> currentPinLockout() => _repo.currentLockout();
-
-  /// Activa el bloqueo definiendo el PIN de 4 dígitos. No bloquea la sesión
-  /// actual: recién aplica en el próximo regreso desde background.
-  Future<void> enableWithPin(String pin) async {
-    await _repo.enableWithPin(pin);
+  /// Activa el bloqueo biométrico. No bloquea la sesión actual: recién aplica
+  /// en el próximo regreso desde background.
+  Future<void> enable() async {
+    await _repo.enable();
     state = state.copyWith(enabled: true, locked: false);
   }
 
   Future<void> disable() async {
     await _repo.disable();
     state = state.copyWith(enabled: false, locked: false);
-  }
-
-  Future<bool> unlockWithPin(String pin) async {
-    final bool valid = await _repo.verifyPin(pin);
-    if (valid) state = state.copyWith(locked: false);
-    return valid;
   }
 
   Future<bool> unlockWithBiometrics() async {
