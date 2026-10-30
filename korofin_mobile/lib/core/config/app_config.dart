@@ -14,8 +14,11 @@ class AppConfig {
   );
 
   /// Tope de espera de una request normal. Sin esto, con el backend caído la
-  /// app se queda colgada indefinidamente.
-  static const Duration requestTimeout = Duration(seconds: 15);
+  /// app se queda colgada indefinidamente. En plan Free de Render el backend
+  /// se duerme sin tráfico y la primera request tras eso puede tardar hasta
+  /// ~70 s en responder mientras despierta — con menos tiempo que eso, la app
+  /// tira error de conexión antes de que el backend llegue a contestar.
+  static const Duration requestTimeout = Duration(seconds: 75);
 
   /// Tope de espera para operaciones que pasan por un proveedor de IA (chat,
   /// escaneo de recibos, generación de insight, extracción de extractos): la

@@ -19,6 +19,7 @@ import '../../widgets/cards/linked_alert_card.dart';
 import '../../widgets/cards/section_card.dart';
 import '../../widgets/charts/category_donut_chart.dart';
 import '../../widgets/charts/income_expense_bar_chart.dart';
+import '../../widgets/common/offline_queue_banner.dart';
 import '../../widgets/nav/app_header.dart';
 import '../quick_add/quick_add_sheet.dart';
 
@@ -46,6 +47,7 @@ class DashboardScreen extends ConsumerWidget {
             onNotificationsTap: () => context.push('/notifications'),
             onProfileTap: () => context.push('/settings'),
           ),
+          const OfflineQueueBanner(),
           Expanded(
             child: dashboard.when(
               loading: () => const Center(child: CircularProgressIndicator()),

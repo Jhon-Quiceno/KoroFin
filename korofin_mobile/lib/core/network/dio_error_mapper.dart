@@ -16,10 +16,12 @@ ApiException mapDioException(DioException error) {
       error.type == DioExceptionType.connectionError;
 
   if (noResponse) {
-    return const ApiException(
+    return ApiException(
       message: 'No hay conexión con el servidor. Verificá que el backend esté '
           'corriendo y que la app apunte a la IP correcta.',
       isNetworkError: true,
+      // Solo el timeout de recepción implica que el pedido sí salió.
+      ambiguousAfterSend: error.type == DioExceptionType.receiveTimeout,
     );
   }
 

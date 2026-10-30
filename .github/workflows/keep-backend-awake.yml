@@ -1,0 +1,16 @@
+name: Keep Backend Awake
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    name: ping
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pegarle a /actuator/health
+        run: |
+          curl -sf -o /dev/null -w "http_code=%{http_code} time_total=%{time_total}s\n" \
+            https://korofin-backend.onrender.com/actuator/health
