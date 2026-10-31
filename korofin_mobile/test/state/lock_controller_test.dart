@@ -67,12 +67,11 @@ void main() {
     expect(container.read(lockControllerProvider).locked, isFalse);
   });
 
-  test('enableWithPin habilita el bloqueo sin bloquear la sesión actual',
-      () async {
+  test('enable habilita el bloqueo sin bloquear la sesión actual', () async {
     final container = _container(authState: const AuthState.unauthenticated());
     final notifier = container.read(lockControllerProvider.notifier);
 
-    await notifier.enableWithPin('1234');
+    await notifier.enable();
 
     final state = container.read(lockControllerProvider);
     expect(state.enabled, isTrue);
@@ -85,7 +84,7 @@ void main() {
     final container =
         _container(authState: AuthState.authenticated(_user()));
     final notifier = container.read(lockControllerProvider.notifier);
-    await notifier.enableWithPin('1234');
+    await notifier.enable();
 
     notifier.didChangeAppLifecycleState(AppLifecycleState.resumed);
 
@@ -108,42 +107,14 @@ void main() {
       () async {
     final container = _container(authState: const AuthState.unauthenticated());
     final notifier = container.read(lockControllerProvider.notifier);
-    await notifier.enableWithPin('1234');
+    await notifier.enable();
 
     notifier.didChangeAppLifecycleState(AppLifecycleState.resumed);
 
     expect(container.read(lockControllerProvider).locked, isFalse);
   });
 
-  test('unlockWithPin correcto desbloquea', () async {
-    final container =
-        _container(authState: AuthState.authenticated(_user()));
-    final notifier = container.read(lockControllerProvider.notifier);
-    await notifier.enableWithPin('1234');
-    notifier.didChangeAppLifecycleState(AppLifecycleState.resumed);
-    expect(container.read(lockControllerProvider).locked, isTrue);
-
-    final bool ok = await notifier.unlockWithPin('1234');
-
-    expect(ok, isTrue);
-    expect(container.read(lockControllerProvider).locked, isFalse);
-  });
-
-  test('unlockWithPin incorrecto no desbloquea', () async {
-    final container =
-        _container(authState: AuthState.authenticated(_user()));
-    final notifier = container.read(lockControllerProvider.notifier);
-    await notifier.enableWithPin('1234');
-    notifier.didChangeAppLifecycleState(AppLifecycleState.resumed);
-
-    final bool ok = await notifier.unlockWithPin('0000');
-
-    expect(ok, isFalse);
-    expect(container.read(lockControllerProvider).locked, isTrue);
-  });
-
-  test('sin biometría disponible, isBiometricAvailable da false (fallback a PIN)',
-      () async {
+  test('sin biometría disponible, isBiometricAvailable da false', () async {
     final container = _container(
       authState: AuthState.authenticated(_user()),
       biometrics: _FakeBiometricAuthenticator(available: false),
@@ -159,7 +130,7 @@ void main() {
       biometrics: _FakeBiometricAuthenticator(),
     );
     final notifier = container.read(lockControllerProvider.notifier);
-    await notifier.enableWithPin('1234');
+    await notifier.enable();
     notifier.didChangeAppLifecycleState(AppLifecycleState.resumed);
 
     final bool ok = await notifier.unlockWithBiometrics();
@@ -174,7 +145,7 @@ void main() {
       biometrics: _FakeBiometricAuthenticator(succeeds: false),
     );
     final notifier = container.read(lockControllerProvider.notifier);
-    await notifier.enableWithPin('1234');
+    await notifier.enable();
     notifier.didChangeAppLifecycleState(AppLifecycleState.resumed);
 
     final bool ok = await notifier.unlockWithBiometrics();
@@ -183,47 +154,11 @@ void main() {
     expect(container.read(lockControllerProvider).locked, isTrue);
   });
 
-  test('currentPinLockout refleja el lockout del repositorio tras 5 fallos',
-      () async {
-    final container =
-        _container(authState: AuthState.authenticated(_user()));
-    final notifier = container.read(lockControllerProvider.notifier);
-    await notifier.enableWithPin('1234');
-    notifier.didChangeAppLifecycleState(AppLifecycleState.resumed);
-
-    expect(await notifier.currentPinLockout(), isNull);
-    for (int i = 0; i < 5; i++) {
-      await notifier.unlockWithPin('0000');
-    }
-
-    expect(await notifier.currentPinLockout(), isNotNull);
-  });
-
-  test('la biometría sigue funcionando aunque el PIN esté en lockout',
-      () async {
-    final container = _container(
-      authState: AuthState.authenticated(_user()),
-      biometrics: _FakeBiometricAuthenticator(),
-    );
-    final notifier = container.read(lockControllerProvider.notifier);
-    await notifier.enableWithPin('1234');
-    notifier.didChangeAppLifecycleState(AppLifecycleState.resumed);
-    for (int i = 0; i < 5; i++) {
-      await notifier.unlockWithPin('0000');
-    }
-    expect(await notifier.currentPinLockout(), isNotNull);
-
-    final bool ok = await notifier.unlockWithBiometrics();
-
-    expect(ok, isTrue);
-    expect(container.read(lockControllerProvider).locked, isFalse);
-  });
-
   test('disable apaga el bloqueo y limpia el estado bloqueado', () async {
     final container =
         _container(authState: AuthState.authenticated(_user()));
     final notifier = container.read(lockControllerProvider.notifier);
-    await notifier.enableWithPin('1234');
+    await notifier.enable();
     notifier.didChangeAppLifecycleState(AppLifecycleState.resumed);
 
     await notifier.disable();
