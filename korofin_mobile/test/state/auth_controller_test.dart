@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:typed_data';
+
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -66,6 +69,22 @@ class _FakeAuthRepository implements AuthRepository {
   @override
   Future<void> logout(String refreshToken) async {
     logoutCalls++;
+  }
+}
+
+/// Adaptador que acepta la request y nunca responde. Sirve para distinguir un
+/// `await` de un `unawaited`: lo primero cuelga para siempre, lo segundo no.
+class HangingAdapter extends CapturingAdapter {
+  final Completer<ResponseBody> _never = Completer<ResponseBody>();
+
+  @override
+  Future<ResponseBody> fetch(
+    RequestOptions options,
+    Stream<Uint8List>? requestStream,
+    Future<void>? cancelFuture,
+  ) {
+    requests.add(options);
+    return _never.future;
   }
 }
 
@@ -196,7 +215,11 @@ void main() {
       // Acá el destino es el login: hacer esperar al usuario los ~200 s del
       // arranque frente a un splash sería peor que dejarlo escribir sus
       // credenciales mientras el backend despierta en paralelo.
-      final adapter = CapturingAdapter(body: <String, dynamic>{'status': 'UP'});
+      //
+      // El sondeo se cuelga a propósito y nunca responde: si el bootstrap lo
+      // esperara (`await` en vez de `unawaited`), `ready` jamás completaría y
+      // este test moriría por timeout en vez de pasar.
+      final adapter = HangingAdapter();
       final store = InMemorySessionStore();
       final container = _container(
         store: store,
@@ -204,27 +227,37 @@ void main() {
         adapter: adapter,
       );
 
-      await container.read(authControllerProvider.notifier).ready;
+      await expectLater(
+        container
+            .read(authControllerProvider.notifier)
+            .ready
+            .timeout(const Duration(seconds: 2)),
+        completes,
+      );
 
       expect(container.read(authControllerProvider).status,
           AuthStatus.unauthenticated);
+      // No se afirma nada sobre `adapter.calls`: el bootstrap completa antes de
+      // que el fetch del sondeo alcance a correr, que es exactamente la prueba
+      // de que no lo espera. Que el sondeo sí se dispare lo cubre el test del
+      // camino con sesión guardada.
     });
 
-    test('si el backend no despierta, el bootstrap sigue y no se cuelga',
-        () async {
+    test('un health que falla no aborta el refresh de sesión', () async {
+      // El sondeo es un intento de despertar, no una precondición: si falla,
+      // el bootstrap tiene que seguir e intentar el refresh igual. Con el
+      // refresh en verde, el único resultado que prueba eso es `authenticated`.
       final adapter =
           CapturingAdapter(throwType: DioExceptionType.connectionError);
       final store = InMemorySessionStore()..saveRefreshToken('R1');
-      final container = _container(
-        store: store,
-        repo: _FakeAuthRepository(failRefresh: true),
-        adapter: adapter,
-      );
+      final repo = _FakeAuthRepository();
+      final container = _container(store: store, repo: repo, adapter: adapter);
 
       await container.read(authControllerProvider.notifier).ready;
 
+      expect(repo.refreshCalls, 1);
       expect(container.read(authControllerProvider).status,
-          AuthStatus.unauthenticated);
+          AuthStatus.authenticated);
     });
   });
 }

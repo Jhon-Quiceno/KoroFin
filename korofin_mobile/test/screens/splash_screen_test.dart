@@ -45,11 +45,13 @@ void main() {
     await pumpSplash(tester);
     await tester.pump(const Duration(seconds: 2));
 
-    await tester.pumpWidget(MaterialApp(theme: AppTheme.light(), home: const SizedBox()));
+    await tester.pumpWidget(
+        MaterialApp(theme: AppTheme.light(), home: const SizedBox()));
 
-    // Si el State no cancelara sus timers, `pump` fallaría acá al dispararse
-    // un setState sobre un widget ya desmontado.
-    await tester.pump(SplashScreen.longWaitDelay);
+    // Deliberadamente NO se pumpea más: avanzar el reloj hasta pasar ambos
+    // timers los drenaría y el test pasaría incluso sin los `cancel()`. Al
+    // terminar acá, con el árbol ya desmontado, el framework falla con
+    // "A Timer is still pending" si `dispose` no los canceló.
     expect(tester.takeException(), isNull);
   });
 }
