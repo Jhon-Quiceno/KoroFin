@@ -1,0 +1,69 @@
+# Vigilancia del backend en Render — NO es el keep-alive.
+#
+# Este workflow nació como keep-alive con `cron: '*/10 * * * *'` y no funcionó.
+# Medición del 2026-11-04 sobre los runs reales: 8 ejecuciones en 48 h, separadas
+# entre 5 y 8 horas, en vez de las ~288 que implicaría el cron. GitHub Actions
+# desprioriza y SALTA los schedules frecuentes; no hay forma de exigirle
+# puntualidad. Como Render suspende el servicio tras 15 min sin tráfico, esos
+# pocos despertares dejaban el backend dormido ~97 % del tiempo.
+#
+# Reparto de responsabilidades a partir de ahora:
+#   - Mantener el backend despierto -> pinger externo cada 5 min (cron-job.org
+#     o UptimeRobot). Ver docs/backend-plan.md, sección "Keep-alive del backend".
+#   - Avisar si ese pinger dejó de funcionar -> este workflow.
+#
+# Es decir: esto ya no intenta mantener nada despierto. Verifica y FALLA cuando
+# el backend no responde, para que GitHub mande el email de workflow fallido y
+# el problema se note acá en vez de descubrirlo abriendo la app.
+
+name: Backend Health Watch
+
+on:
+  schedule:
+    # Cada 30 min. Si GitHub se salta algunos, no pasa nada: esto es vigilancia,
+    # no el mecanismo que mantiene vivo el servicio.
+    - cron: '*/30 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: backend-health-watch
+  cancel-in-progress: false
+
+jobs:
+  watch:
+    name: verificar que el backend responda
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Consultar /actuator/health
+        id: health
+        run: |
+          set -o pipefail
+
+          # 260 s cubre los ~200 s de arranque en frío medidos, por si el
+          # servicio estaba suspendido cuando llegó este chequeo.
+          http_code=$(curl -s -o response.txt \
+            --max-time 260 \
+            -w '%{http_code}' \
+            https://korofin-backend.onrender.com/actuator/health || echo "000")
+
+          elapsed=$(curl -s -o /dev/null --max-time 30 \
+            -w '%{time_total}' \
+            https://korofin-backend.onrender.com/actuator/health || echo "0")
+
+          echo "http_code=$http_code"
+          echo "respuesta: $(cat response.txt)"
+          echo "tiempo del segundo sondeo: ${elapsed}s"
+
+          if [ "$http_code" != "200" ]; then
+            echo "::error::El backend no respondió 200 (http_code=$http_code). El pinger externo puede estar caído o el servicio no arranca."
+            exit 1
+          fi
+
+          # Si el primer sondeo tuvo que esperar el arranque, el servicio estaba
+          # dormido: el pinger externo no está haciendo su trabajo.
+          if awk "BEGIN { exit !($elapsed > 15) }"; then
+            echo "::warning::El backend respondió, pero lento (${elapsed}s). Revisar que el pinger externo siga activo."
+          fi
+
+          echo "Backend arriba y respondiendo rápido."

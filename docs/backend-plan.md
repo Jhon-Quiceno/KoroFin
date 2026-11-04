@@ -31,6 +31,7 @@
 13. [Qué se elimina / simplifica en el refactor](#13-qué-se-elimina--simplifica-en-el-refactor)
 14. [Plan Docker / CI-CD para KoroFin](#14-plan-docker--cicd-para-korofin)
 15. [Plan de tests para KoroFin](#15-plan-de-tests-para-korofin)
+16. [Keep-alive del backend en Render (plan Free)](#16-keep-alive-del-backend-en-render-plan-free)
 
 ---
 
@@ -935,3 +936,79 @@ test que falla primero, luego el código mínimo para pasarlo, luego refactoriza
   describe el comportamiento requerido, no para inflar un número. JaCoCo se agrega desde el
   `pom.xml` inicial con un *gate* de build en CI (fallar el build si un módulo cae por debajo de su
   mínimo), para que la meta sea visible y no se erosione con el tiempo.
+
+## 16. Keep-alive del backend en Render (plan Free)
+
+> Añadido el 2026-11-04 tras diagnosticar por qué la app no lograba conectarse.
+
+### 16.1 El problema, con números medidos
+
+El plan Free de Render **suspende** el servicio tras 15 minutos sin tráfico. Volver a arrancarlo
+no es rápido:
+
+```
+Started KorofinBackendApplication in 186.602 seconds (process running for 200.093)
+```
+
+La causa es el CPU, no la memoria. Durante esos tres minutos las métricas de Render muestran el
+`cpu_usage` topado en **0,15** de forma sostenida (el plan Free asigna ~0,1 CPU), mientras la
+memoria se queda en un pico de 374 MB sobre los 512 MB disponibles. La JVM no está corta de
+espacio: está asfixiada de CPU.
+
+Con el servicio **despierto**, en cambio, el backend es rápido: `/actuator/health` responde en
+3,6 s y `POST /api/users/login` en 4,9 s.
+
+Es decir: el backend nunca estuvo roto. Lo único roto era el ciclo dormir/despertar.
+
+### 16.2 Los dos intentos que no funcionaron, y por qué
+
+| Intento | Por qué falló |
+| --- | --- |
+| Subir `requestTimeout` del mobile a 75 s | El arranque real son ~200 s. Rendirse a los 75 s es rendirse a menos de la mitad del camino. |
+| `cron: '*/10 * * * *'` en GitHub Actions | GitHub **desprioriza y salta** los schedules frecuentes. Sobre los runs reales: 8 ejecuciones en 48 h separadas 5-8 h, en lugar de las ~288 que implica el cron. El backend quedaba dormido ~97 % del tiempo. |
+
+La lección: **GitHub Actions no sirve como keep-alive.** Su cron es best-effort y no hay forma de
+exigirle puntualidad.
+
+### 16.3 La configuración correcta
+
+Tres piezas, cada una haciendo solo lo que sí puede cumplir:
+
+**1. Pinger externo (es lo que mantiene vivo el servicio).**
+
+Un servicio de monitoreo HTTP gratuito que pegue cada 5 minutos. Configuración en
+[cron-job.org](https://cron-job.org) (gratis, sin tarjeta):
+
+- URL: `https://korofin-backend.onrender.com/actuator/health`
+- Intervalo: cada **5 minutos** (por debajo de los 15 min que Render espera para suspender)
+- Método: `GET`
+- Timeout: el máximo que permita (el primer ping tras una suspensión tarda ~200 s)
+- Activar la notificación por email ante fallo
+
+Alternativa equivalente: UptimeRobot, intervalo de 5 min.
+
+Nota de consumo: el plan Free de Render da 750 horas-instancia al mes y mantenerlo despierto 24/7
+consume ~720. Cabe, pero sin margen para un segundo servicio en la misma cuenta.
+
+**2. `.github/workflows/backend-health-watch.yml` (vigila al pinger).**
+
+Ya no intenta mantener nada despierto. Cada 30 min verifica el health y **falla el workflow** si el
+backend no responde, de modo que GitHub mande el email. Si además responde lento, emite un warning:
+eso significa que estaba dormido y por lo tanto el pinger externo dejó de funcionar.
+
+**3. Colchón en la app (para cuando el pinger falle).**
+
+- `AppConfig.requestTimeout` = 30 s para la operación normal.
+- `AppConfig.coldStartTimeout` = 240 s solo para el sondeo que despierta el backend.
+- `ApiClient.warmUp()` sondea `/actuator/health` al arrancar la app, antes del refresh de sesión.
+- Ante un timeout, `ApiClient` confirma con el health y reintenta **solo** métodos idempotentes
+  (`GET`/`HEAD`). Un `POST` que expiró no se repite solo —podría duplicar un movimiento—: devuelve
+  un mensaje que dice la verdad y deja la decisión al usuario.
+- `SplashScreen` explica a los 6 s que el servidor está despertando, y a los 25 s que puede tardar
+  varios minutos.
+
+### 16.4 La solución definitiva, si algún día se quiere pagar
+
+El plan **Starter de Render (USD 7/mes)** no suspende el servicio y da 0,5 CPU (5× el Free). El
+arranque bajaría a ~40 s y solo ocurriría en los deploys. Eso elimina de raíz el pinger, el
+workflow de vigilancia y el colchón de la app.
