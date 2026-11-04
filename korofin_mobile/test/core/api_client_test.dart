@@ -195,6 +195,28 @@ void main() {
           greaterThan(AppConfig.requestTimeout.inSeconds));
     });
 
+    test('el reintento preserva responseType y el timeout propio del original',
+        () async {
+      // `Options` no hereda nada de la request original: si el reintento solo
+      // copia método y headers, un `ResponseType.plain` vuelve a `json` y un
+      // timeout pasado por parámetro cae al global.
+      final adapter = CapturingAdapter();
+      adapter.queue
+        ..add(<String, dynamic>{'throwType': DioExceptionType.receiveTimeout})
+        ..add(<String, dynamic>{'body': <String, dynamic>{'status': 'UP'}})
+        ..add(<String, dynamic>{'body': <String, dynamic>{'ok': true}});
+      final client = _clientWith(adapter, token: 'x');
+
+      await client.get('/api/reports', timeout: AppConfig.aiRequestTimeout);
+
+      final RequestOptions original = adapter.requests.first;
+      final RequestOptions retry = adapter.requests.last;
+      expect(retry.path, '/api/reports');
+      expect(retry.receiveTimeout, AppConfig.aiRequestTimeout);
+      expect(retry.responseType, original.responseType);
+      expect(retry.contentType, original.contentType);
+    });
+
     test('un POST que falla al CONECTAR no se marca ambiguo: nunca salió',
         () async {
       // La cola offline usa `ambiguousAfterSend` para decidir entre

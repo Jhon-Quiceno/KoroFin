@@ -243,6 +243,33 @@ void main() {
       // camino con sesión guardada.
     });
 
+    test('con el health y el refresh caídos, termina en no autenticado sin '
+        'colgarse', () async {
+      // Cobertura del peor caso completo: ni el sondeo despierta el backend ni
+      // el refresh sirve. El bootstrap tiene que cerrar igual, porque si no la
+      // app se queda en el splash para siempre.
+      final adapter =
+          CapturingAdapter(throwType: DioExceptionType.connectionError);
+      final store = InMemorySessionStore()..saveRefreshToken('R1');
+      final container = _container(
+        store: store,
+        repo: _FakeAuthRepository(failRefresh: true),
+        adapter: adapter,
+      );
+
+      await expectLater(
+        container
+            .read(authControllerProvider.notifier)
+            .ready
+            .timeout(const Duration(seconds: 2)),
+        completes,
+      );
+
+      expect(container.read(authControllerProvider).status,
+          AuthStatus.unauthenticated);
+      expect(await store.readRefreshToken(), isNull);
+    });
+
     test('un health que falla no aborta el refresh de sesión', () async {
       // El sondeo es un intento de despertar, no una precondición: si falla,
       // el bootstrap tiene que seguir e intentar el refresh igual. Con el

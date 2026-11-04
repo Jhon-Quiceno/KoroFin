@@ -190,9 +190,20 @@ class ApiClient {
           original.path,
           data: original.data,
           queryParameters: original.queryParameters,
+          // Se copian explícitamente los campos que `Options` NO hereda de la
+          // request original: construir un `Options` nuevo con solo método y
+          // headers los perdía, así que el reintento podía comportarse distinto
+          // de la request que repite (por ejemplo volver a `json` un
+          // `ResponseType.plain`, o caer al timeout global uno que traía el
+          // suyo propio por parámetro).
           options: Options(
             method: original.method,
             headers: original.headers,
+            responseType: original.responseType,
+            contentType: original.contentType,
+            receiveTimeout: original.receiveTimeout,
+            sendTimeout: original.sendTimeout,
+            listFormat: original.listFormat,
             extra: <String, dynamic>{...original.extra, 'wokenUp': true},
           ),
         );
