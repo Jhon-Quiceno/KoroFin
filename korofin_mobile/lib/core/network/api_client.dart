@@ -76,6 +76,7 @@ class ApiClient {
   SessionExpiredCallback? onSessionExpired;
 
   Future<String?>? _inFlightRefresh;
+  Future<bool>? _inFlightProbe;
 
   /// Acceso directo a Dio para casos que no encajan en los verbos de abajo
   /// (por ejemplo `multipart/form-data` o descargas en streaming).
@@ -123,13 +124,143 @@ class ApiClient {
   Future<Response<dynamic>> delete(String path, {Object? body}) =>
       _send(() => _dio.delete<dynamic>(path, data: body));
 
+  /// Ruta pública del health del backend. Es la única que sirve para sondear
+  /// si el servicio está arriba sin necesitar sesión (`permitAll` en
+  /// `SecurityConfig`).
+  static const String _healthPath = '/actuator/health';
+
+  /// Métodos que se pueden repetir sin efecto colateral. Un `GET` perdido se
+  /// vuelve a pedir sin riesgo; un `POST` no.
+  static const Set<String> _idempotentMethods = <String>{'GET', 'HEAD'};
+
+  /// Despierta el backend de forma proactiva, antes de la primera request real.
+  ///
+  /// Pensado para llamarse al arrancar la app: si el servicio estaba dormido,
+  /// esto absorbe los ~200 s de arranque en un sondeo que la UI puede mostrar
+  /// como "conectando" en vez de hacer fallar el bootstrap de sesión.
+  ///
+  /// Nunca lanza: si el backend no despierta, las requests siguientes fallarán
+  /// con su propio [ApiException] y la UI decide qué mostrar.
+  Future<void> warmUp() async {
+    await _probeHealth();
+  }
+
   Future<Response<dynamic>> _send(
     Future<Response<dynamic>> Function() run,
   ) async {
     try {
       return await run();
     } on DioException catch (error) {
-      throw mapDioException(error);
+      if (!_looksLikeSleepingBackend(error)) {
+        throw mapDioException(error);
+      }
+
+      // El backend pudo haberse dormido (plan Free de Render): confirmar con el
+      // health, que espera el arranque completo, antes de dar el fallo por real.
+      if (!await _probeHealth()) {
+        throw mapDioException(error);
+      }
+
+      final RequestOptions original = error.requestOptions;
+      if (!_idempotentMethods.contains(original.method.toUpperCase())) {
+        if (_mayHaveReachedServer(error)) {
+          // Un POST/PUT/PATCH/DELETE que falló en fase de envío o recepción
+          // pudo haber llegado al backend. Repetirlo duplicaría el movimiento,
+          // así que se le devuelve el control al usuario con la verdad.
+          throw const ApiException(
+            message: 'El servidor estaba despertando y ya está listo. '
+                'Volvé a intentarlo.',
+            isNetworkError: true,
+            ambiguousAfterSend: true,
+          );
+        }
+        // La conexión nunca se estableció, así que el pedido no salió: se
+        // propaga como error de red común, sin marcarlo ambiguo. Esto importa
+        // porque la cola offline usa `ambiguousAfterSend` para decidir entre
+        // reintentar sola (`break`) y retener la entrada esperando una
+        // confirmación manual del usuario — marcar ambiguo algo que nunca
+        // salió dejaría un movimiento parado hasta que alguien lo toque.
+        throw mapDioException(error);
+      }
+
+      // Un solo reintento, fuera de [_send]: si vuelve a expirar se propaga sin
+      // abrir otro ciclo de despertar.
+      try {
+        return await _dio.request<dynamic>(
+          original.path,
+          data: original.data,
+          queryParameters: original.queryParameters,
+          // Se copian explícitamente los campos que `Options` NO hereda de la
+          // request original: construir un `Options` nuevo con solo método y
+          // headers los perdía, así que el reintento podía comportarse distinto
+          // de la request que repite (por ejemplo volver a `json` un
+          // `ResponseType.plain`, o caer al timeout global uno que traía el
+          // suyo propio por parámetro).
+          options: Options(
+            method: original.method,
+            headers: original.headers,
+            responseType: original.responseType,
+            contentType: original.contentType,
+            receiveTimeout: original.receiveTimeout,
+            sendTimeout: original.sendTimeout,
+            listFormat: original.listFormat,
+            extra: <String, dynamic>{...original.extra, 'wokenUp': true},
+          ),
+        );
+      } on DioException catch (retryError) {
+        throw mapDioException(retryError);
+      }
+    }
+  }
+
+  /// `true` si el fallo ocurrió con la conexión ya establecida, así que el
+  /// pedido pudo haber llegado al backend. Mismo criterio que
+  /// `mapDioException` en `dio_error_mapper.dart`: solo las fases de envío y
+  /// recepción implican que el pedido salió.
+  bool _mayHaveReachedServer(DioException error) =>
+      error.type == DioExceptionType.receiveTimeout ||
+      error.type == DioExceptionType.sendTimeout;
+
+  /// `true` si el fallo es compatible con un backend dormido o inalcanzable:
+  /// nunca llegó respuesta. Un 4xx/5xx del backend significa que está vivo y
+  /// no debe disparar ningún sondeo.
+  bool _looksLikeSleepingBackend(DioException error) {
+    if (error.response != null) return false;
+    if (error.requestOptions.extra['wokenUp'] == true) return false;
+    if (error.requestOptions.path.endsWith(_healthPath)) return false;
+    return error.type == DioExceptionType.connectionTimeout ||
+        error.type == DioExceptionType.sendTimeout ||
+        error.type == DioExceptionType.receiveTimeout ||
+        error.type == DioExceptionType.connectionError;
+  }
+
+  /// Single-flight, igual que [_refreshOnce]: si una pantalla dispara varias
+  /// requests a la vez contra un backend dormido, todas esperan el mismo
+  /// sondeo en vez de abrir N sondeos de 300 s que competirían por el único
+  /// décimo de CPU que el contenedor necesita justamente para arrancar.
+  Future<bool> _probeHealth() =>
+      _inFlightProbe ??= _probeHealthOnce().whenComplete(() {
+        _inFlightProbe = null;
+      });
+
+  /// Pega al health con el timeout largo de arranque en frío. `true` si el
+  /// backend contestó. No lanza nunca.
+  Future<bool> _probeHealthOnce() async {
+    try {
+      final Response<dynamic> response = await _dio.get<dynamic>(
+        _healthPath,
+        options: Options(
+          receiveTimeout: AppConfig.coldStartTimeout,
+          sendTimeout: AppConfig.coldStartTimeout,
+          // `retried: true` deja fuera este sondeo del rescate por 401: el
+          // health es público y un refresh acá no tendría sentido.
+          extra: <String, dynamic>{'retried': true, 'wokenUp': true},
+        ),
+      );
+      final int? status = response.statusCode;
+      return status != null && status >= 200 && status < 300;
+    } on DioException {
+      return false;
     }
   }
 
