@@ -344,6 +344,101 @@ void main() {
       expect(adapter.calls, 1);
     });
 
+    test('un fallo al CONECTAR sondea con presupuesto corto, no con el de '
+        'cold start', () async {
+      // Si la conexión nunca se establecio no hay nadie arrancando del otro
+      // lado: es red mala o un host inalcanzable. Esperar los 300 s del
+      // arranque en frío ahí solo cuelga al usuario sin ninguna chance.
+      final adapter = CapturingAdapter();
+      adapter.queue
+        ..add(<String, dynamic>{'throwType': DioExceptionType.connectionError})
+        ..add(<String, dynamic>{'body': <String, dynamic>{'status': 'UP'}})
+        ..add(<String, dynamic>{'body': <String, dynamic>{'ok': true}});
+      final client = _clientWith(adapter, token: 'x');
+
+      await client.get('/api/expenses');
+
+      final RequestOptions probe = adapter.requests[1];
+      expect(probe.path, '/actuator/health');
+      expect(probe.receiveTimeout, AppConfig.requestTimeout);
+      expect(probe.receiveTimeout, isNot(AppConfig.coldStartTimeout));
+    });
+
+    test('un timeout de RECEPCIÓN sí sondea con el presupuesto de cold start',
+        () async {
+      // Acá la conexión se establecio y el servidor colgó: es exactamente la
+      // forma de un backend arrancando, así que vale esperarlo.
+      final adapter = CapturingAdapter();
+      adapter.queue
+        ..add(<String, dynamic>{'throwType': DioExceptionType.receiveTimeout})
+        ..add(<String, dynamic>{'body': <String, dynamic>{'status': 'UP'}})
+        ..add(<String, dynamic>{'body': <String, dynamic>{'ok': true}});
+      final client = _clientWith(adapter, token: 'x');
+
+      await client.get('/api/expenses');
+
+      expect(adapter.requests[1].receiveTimeout, AppConfig.coldStartTimeout);
+    });
+
+    test('tras un sondeo fallido no se vuelve a sondear enseguida', () async {
+      // Sin esto, el peor caso acumulaba dos esperas completas: el sondeo de
+      // `warmUp` y despues el de `_send`, con la app muda en el medio.
+      // Todo falla al conectar: el sondeo del warmUp y la request posterior.
+      final adapter =
+          CapturingAdapter(throwType: DioExceptionType.connectionError);
+      final client = _clientWith(adapter, token: 'x');
+
+      await client.warmUp();
+      await expectLater(
+        () => client.get('/api/expenses'),
+        throwsA(isA<ApiException>()),
+      );
+
+      // Solo el sondeo del warmUp: la request no abre uno nuevo.
+      final int probes = adapter.requests
+          .where((r) => r.path.endsWith('/actuator/health'))
+          .length;
+      expect(probes, 1);
+    });
+
+    test('un sondeo exitoso no queda cacheado como negativo', () async {
+      final adapter = CapturingAdapter();
+      adapter.queue
+        ..add(<String, dynamic>{'body': <String, dynamic>{'status': 'UP'}})
+        ..add(<String, dynamic>{'throwType': DioExceptionType.receiveTimeout})
+        ..add(<String, dynamic>{'body': <String, dynamic>{'status': 'UP'}})
+        ..add(<String, dynamic>{'body': <String, dynamic>{'ok': true}});
+      final client = _clientWith(adapter, token: 'x');
+
+      await client.warmUp();
+      final Response<dynamic> response = await client.get('/api/expenses');
+
+      expect(response.data, <String, dynamic>{'ok': true});
+      final int probes = adapter.requests
+          .where((r) => r.path.endsWith('/actuator/health'))
+          .length;
+      expect(probes, 2);
+    });
+
+    test('el reintento tras un refresh también preserva las opciones',
+        () async {
+      // Mismo defecto que ya se corrigio en el reintento del wake-up: el
+      // rescate por 401 reconstruia `Options` con solo metodo y headers.
+      final adapter = CapturingAdapter();
+      adapter.queue
+        ..add(<String, dynamic>{'status': 401, 'body': {'message': 'vencido'}})
+        ..add(<String, dynamic>{'body': <String, dynamic>{'ok': true}});
+      final Dio dio = Dio()..httpClientAdapter = adapter;
+      final client = ApiClient(readAccessToken: () => 'viejo', dio: dio);
+      client.onRefresh = () async => 'token-nuevo';
+
+      await client.get('/api/reports', timeout: AppConfig.aiRequestTimeout);
+
+      final RequestOptions retry = adapter.requests.last;
+      expect(retry.headers['Authorization'], 'Bearer token-nuevo');
+      expect(retry.receiveTimeout, AppConfig.aiRequestTimeout);
+    });
+
     test('warmUp sondea el health con el timeout largo y no lanza si falla',
         () async {
       final adapter =

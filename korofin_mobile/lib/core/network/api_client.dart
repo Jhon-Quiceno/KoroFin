@@ -78,6 +78,14 @@ class ApiClient {
   Future<String?>? _inFlightRefresh;
   Future<bool>? _inFlightProbe;
 
+  /// Cuándo falló el último sondeo al health, para no repetirlo en cadena.
+  DateTime? _lastProbeFailure;
+
+  /// Cuánto dura ese recuerdo. Corto a propósito: si el backend despierta
+  /// justo después del fallo, la app no debe quedar convencida de que está
+  /// caído más que unos segundos.
+  static const Duration _probeFailureMemory = Duration(seconds: 10);
+
   /// Acceso directo a Dio para casos que no encajan en los verbos de abajo
   /// (por ejemplo `multipart/form-data` o descargas en streaming).
   Dio get dio => _dio;
@@ -142,7 +150,9 @@ class ApiClient {
   /// Nunca lanza: si el backend no despierta, las requests siguientes fallarán
   /// con su propio [ApiException] y la UI decide qué mostrar.
   Future<void> warmUp() async {
-    await _probeHealth();
+    // Al arrancar la app el escenario ES el arranque en frío, así que se le da
+    // el presupuesto completo.
+    await _probeHealth(AppConfig.coldStartTimeout);
   }
 
   Future<Response<dynamic>> _send(
@@ -156,8 +166,10 @@ class ApiClient {
       }
 
       // El backend pudo haberse dormido (plan Free de Render): confirmar con el
-      // health, que espera el arranque completo, antes de dar el fallo por real.
-      if (!await _probeHealth()) {
+      // health antes de dar el fallo por real. El presupuesto del sondeo
+      // depende de qué tan lejos llegó la request original — ver
+      // [_probeBudgetFor].
+      if (!await _probeHealth(_probeBudgetFor(error))) {
         throw mapDioException(error);
       }
 
@@ -234,32 +246,61 @@ class ApiClient {
         error.type == DioExceptionType.connectionError;
   }
 
+  /// Cuánto vale la pena esperar al sondeo, según hasta dónde llegó la request
+  /// que falló. Es la diferencia entre un backend arrancando y una conexión
+  /// mala, y está en la propia señal del error:
+  ///
+  /// - **Fase de envío o recepción:** la conexión TCP/TLS se estableció y el
+  ///   servidor colgó sin contestar. Eso es exactamente la forma de Render
+  ///   aceptando la conexión mientras levanta el contenedor, así que vale
+  ///   esperar el arranque completo.
+  /// - **Fallo al conectar:** nunca hubo conexión. No hay nadie arrancando del
+  ///   otro lado — es el dispositivo sin red, un DNS que no resuelve o un host
+  ///   inalcanzable. Esperar ahí los minutos del arranque en frío solo cuelga
+  ///   al usuario sin ninguna chance de que la espera sirva.
+  Duration _probeBudgetFor(DioException error) => _mayHaveReachedServer(error)
+      ? AppConfig.coldStartTimeout
+      : AppConfig.requestTimeout;
+
   /// Single-flight, igual que [_refreshOnce]: si una pantalla dispara varias
   /// requests a la vez contra un backend dormido, todas esperan el mismo
-  /// sondeo en vez de abrir N sondeos de 300 s que competirían por el único
-  /// décimo de CPU que el contenedor necesita justamente para arrancar.
-  Future<bool> _probeHealth() =>
-      _inFlightProbe ??= _probeHealthOnce().whenComplete(() {
-        _inFlightProbe = null;
-      });
+  /// sondeo en vez de abrir N sondeos que competirían por el único décimo de
+  /// CPU que el contenedor necesita justamente para arrancar.
+  ///
+  /// Además recuerda el último fallo: mientras ese recuerdo esté fresco, no se
+  /// vuelve a sondear. Sin eso, un backend que no despierta acumulaba dos
+  /// esperas completas seguidas —la de [warmUp] y la del primer [_send]— con
+  /// la app muda en el medio.
+  Future<bool> _probeHealth(Duration budget) {
+    if (_lastProbeFailure != null &&
+        DateTime.now().difference(_lastProbeFailure!) < _probeFailureMemory) {
+      return Future<bool>.value(false);
+    }
+    return _inFlightProbe ??= _probeHealthOnce(budget).whenComplete(() {
+      _inFlightProbe = null;
+    });
+  }
 
-  /// Pega al health con el timeout largo de arranque en frío. `true` si el
-  /// backend contestó. No lanza nunca.
-  Future<bool> _probeHealthOnce() async {
+  /// Pega al health con el presupuesto dado. `true` si el backend contestó.
+  /// No lanza nunca.
+  Future<bool> _probeHealthOnce(Duration budget) async {
     try {
       final Response<dynamic> response = await _dio.get<dynamic>(
         _healthPath,
         options: Options(
-          receiveTimeout: AppConfig.coldStartTimeout,
-          sendTimeout: AppConfig.coldStartTimeout,
+          receiveTimeout: budget,
+          sendTimeout: budget,
           // `retried: true` deja fuera este sondeo del rescate por 401: el
           // health es público y un refresh acá no tendría sentido.
           extra: <String, dynamic>{'retried': true, 'wokenUp': true},
         ),
       );
       final int? status = response.statusCode;
-      return status != null && status >= 200 && status < 300;
+      final bool up = status != null && status >= 200 && status < 300;
+      _lastProbeFailure = up ? null : DateTime.now();
+      return up;
     } on DioException {
+      _lastProbeFailure = DateTime.now();
       return false;
     }
   }
@@ -309,12 +350,20 @@ class ApiClient {
     }
 
     try {
+      // Igual que en el reintento del wake-up: `Options` no hereda nada de la
+      // request original, así que los campos que no se copian a mano se
+      // pierden y el reintento se comporta distinto de lo que repite.
       final Options retryOptions = Options(
         method: error.requestOptions.method,
         headers: <String, dynamic>{
           ...error.requestOptions.headers,
           'Authorization': 'Bearer $newToken',
         },
+        responseType: error.requestOptions.responseType,
+        contentType: error.requestOptions.contentType,
+        receiveTimeout: error.requestOptions.receiveTimeout,
+        sendTimeout: error.requestOptions.sendTimeout,
+        listFormat: error.requestOptions.listFormat,
         extra: <String, dynamic>{
           ...error.requestOptions.extra,
           'retried': true,
