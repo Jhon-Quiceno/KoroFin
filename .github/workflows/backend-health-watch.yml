@@ -40,10 +40,10 @@ jobs:
         run: |
           set -o pipefail
 
-          # 260 s cubre los ~200 s de arranque en frío medidos, por si el
-          # servicio estaba suspendido cuando llegó este chequeo.
+          # 300 s cubre el arranque en frio por si el servicio estaba suspendido
+          # cuando llego este chequeo. Medicion de 6 arranques reales: 188-214 s.
           http_code=$(curl -s -o response.txt \
-            --max-time 260 \
+            --max-time 300 \
             -w '%{http_code}' \
             https://korofin-backend.onrender.com/actuator/health || echo "000")
 

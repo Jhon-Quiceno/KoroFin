@@ -950,6 +950,21 @@ no es rápido:
 Started KorofinBackendApplication in 186.602 seconds (process running for 200.093)
 ```
 
+Ese no fue un caso aislado. Seis arranques medidos en los logs de Render entre el 2026-11-03 y
+el 2026-11-04, leyendo el `process running for` que cubre todo el arranque del proceso:
+
+| # | Arranque de Spring | Proceso completo |
+| --- | --- | --- |
+| 1 | 175,9 s | **188,2 s** |
+| 2 | 183,1 s | **195,8 s** |
+| 3 | 183,8 s | **196,8 s** |
+| 4 | 186,6 s | **200,1 s** |
+| 5 | 196,3 s | **209,5 s** |
+| 6 | 201,1 s | **214,2 s** |
+
+El peor caso observado es 214 s, y eso todavía no incluye lo que Render tarda en provisionar el
+contenedor antes de que el proceso arranque.
+
 La causa es el CPU, no la memoria. Durante esos tres minutos las métricas de Render muestran el
 `cpu_usage` topado en **0,15** de forma sostenida (el plan Free asigna ~0,1 CPU), mientras la
 memoria se queda en un pico de 374 MB sobre los 512 MB disponibles. La JVM no está corta de
@@ -982,7 +997,7 @@ Un servicio de monitoreo HTTP gratuito que pegue cada 5 minutos. Configuración 
 - URL: `https://korofin-backend.onrender.com/actuator/health`
 - Intervalo: cada **5 minutos** (por debajo de los 15 min que Render espera para suspender)
 - Método: `GET`
-- Timeout: el máximo que permita (el primer ping tras una suspensión tarda ~200 s)
+- Timeout: el máximo que permita (el primer ping tras una suspensión tarda entre 188 y 214 s)
 - Activar la notificación por email ante fallo
 
 Alternativa equivalente: UptimeRobot, intervalo de 5 min.
@@ -999,7 +1014,9 @@ eso significa que estaba dormido y por lo tanto el pinger externo dejó de funci
 **3. Colchón en la app (para cuando el pinger falle).**
 
 - `AppConfig.requestTimeout` = 30 s para la operación normal.
-- `AppConfig.coldStartTimeout` = 240 s solo para el sondeo que despierta el backend.
+- `AppConfig.coldStartTimeout` = 300 s solo para el sondeo que despierta el backend (~40 % de
+  margen sobre el peor caso de 214 s; un valor más justo repetiría el error de rendirse antes de
+  tiempo).
 - `ApiClient.warmUp()` sondea `/actuator/health` al arrancar la app, antes del refresh de sesión.
 - Ante un timeout, `ApiClient` confirma con el health y reintenta **solo** métodos idempotentes
   (`GET`/`HEAD`). Un `POST` que expiró no se repite solo —podría duplicar un movimiento—: devuelve

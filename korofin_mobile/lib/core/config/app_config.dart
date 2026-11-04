@@ -27,20 +27,28 @@ class AppConfig {
   /// Tope de espera del sondeo que despierta el backend dormido.
   ///
   /// En el plan Free de Render el servicio se suspende tras 15 min sin tráfico,
-  /// y arrancarlo de nuevo tarda **mucho** más de lo que parecía: la medición
-  /// real del log de arranque es
-  /// `Started KorofinBackendApplication in 186.602 seconds`, porque el plan
-  /// Free da ~0,1 CPU y la JVM queda asfixiada (las métricas muestran el CPU
-  /// topado en 0,15 durante los tres minutos completos).
+  /// y arrancarlo de nuevo tarda **mucho** más de lo que parecía. Medición de
+  /// 6 arranques reales en los logs de Render (2026-11-03/04), leyendo el
+  /// `process running for` que incluye todo el arranque del proceso:
+  ///
+  ///     188,2 s · 195,8 s · 196,8 s · 200,1 s · 209,5 s · 214,2 s
+  ///
+  /// La causa es el CPU: el plan Free da ~0,1 CPU y las métricas muestran el
+  /// `cpu_usage` topado en 0,15 durante los tres minutos completos, mientras la
+  /// memoria se queda en 374 MB de los 512 MB disponibles. La JVM no está corta
+  /// de espacio, está asfixiada de CPU.
   ///
   /// Por eso el valor anterior de 75 s para todas las requests no servía: se
-  /// rendía a menos de la mitad del tiempo que el backend necesita. 240 s
-  /// cubre los ~200 s medidos con margen.
+  /// rendía a menos de la mitad del camino. 300 s deja ~40 % de margen sobre el
+  /// peor caso observado (214 s) y además cubre el tiempo que Render tarda en
+  /// provisionar el contenedor antes de que el proceso arranque, que no entra
+  /// en esa medición. Un valor más justo volvería a cometer el error original:
+  /// rendirse justo antes de que el backend llegue a contestar.
   ///
   /// Esto es un **colchón**, no la solución: el keep-alive externo (ver
-  /// `docs/backend-plan.md`, sección de keep-alive) es lo que evita que el
-  /// backend se duerma. Este timeout solo existe para cuando ese pinger falla.
-  static const Duration coldStartTimeout = Duration(seconds: 240);
+  /// `docs/backend-plan.md`, sección 16) es lo que evita que el backend se
+  /// duerma. Este timeout solo existe para cuando ese pinger falla.
+  static const Duration coldStartTimeout = Duration(seconds: 300);
 
   /// Tope de espera para operaciones que pasan por un proveedor de IA (chat,
   /// escaneo de recibos, generación de insight, extracción de extractos): la

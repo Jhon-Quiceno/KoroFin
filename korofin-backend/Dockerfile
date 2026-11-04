@@ -24,13 +24,14 @@ EXPOSE 8080
 # Render hace su propio probing HTTP contra $PORT, pero esto sirve para
 # `docker ps`/docker-compose local. El start-period cubre el arranque holgado
 # de un entorno con poco CPU (ver nota de UseSerialGC abajo).
-HEALTHCHECK --interval=30s --timeout=5s --start-period=240s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=5s --start-period=300s --retries=3 \
     CMD wget --no-verbose --tries=1 --spider "http://localhost:${PORT:-8080}/actuator/health" || exit 1
 
 # -XX:+UseSerialGC
 #   El plan Free de Render asigna ~0,1 CPU. Medido el 2026-11-04, el arranque
-#   tarda 186 s con el CPU topado en 0,15 todo el tiempo: la app está asfixiada
-#   de CPU, no de memoria (pico 374 MB de los 512 MB disponibles).
+#   tarda entre 188 s y 214 s (6 arranques medidos) con el CPU topado en 0,15
+#   todo el tiempo: la app está asfixiada de CPU, no de memoria (pico 374 MB
+#   de los 512 MB disponibles).
 #   Con menos de un core, los colectores paralelos (G1 por defecto) pagan la
 #   coordinación de varios hilos de GC que se pelean ese único décimo de CPU.
 #   SerialGC usa un solo hilo y menos memoria auxiliar, así que acá gana tanto
