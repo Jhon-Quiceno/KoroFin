@@ -45,9 +45,19 @@ class AuthController extends Notifier<AuthState> {
     final String? refreshToken =
         await ref.read(sessionStoreProvider).readRefreshToken();
     if (refreshToken == null || refreshToken.isEmpty) {
+      // Sin sesión el destino es el login. Despertar el backend acá sin esperar
+      // es lo mejor de los dos mundos: el usuario escribe sus credenciales
+      // (10-20 s) mientras el servicio arranca en paralelo, en vez de mirar un
+      // splash durante los ~200 s que tarda el plan Free de Render.
+      unawaited(ref.read(apiClientProvider).warmUp());
       state = const AuthState.unauthenticated();
       return;
     }
+    // Con sesión guardada hay que despertar el backend ANTES del refresh: ese
+    // refresh es un POST y, si expira contra un servicio dormido, no se puede
+    // reintentar solo sin arriesgar rotar el token dos veces. El splash cubre
+    // esta espera y va explicando que el servidor está arrancando.
+    await ref.read(apiClientProvider).warmUp();
     try {
       final AuthSession session = await _repo.refresh(refreshToken);
       await _persist(session);

@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 
+import '../../core/config/app_config.dart';
 import '../../core/network/api_client.dart';
 import '../../core/network/dio_error_mapper.dart';
 import '../../models/movement.dart';
@@ -52,7 +53,14 @@ class ReportRepository {
           'to': MovementDraft.isoDate(to),
           'format': 'csv',
         },
-        options: Options(responseType: ResponseType.plain),
+        // Timeout propio: esta exportación consulta el rango completo de
+        // movimientos y serializa el CSV, así que es la operación más pesada
+        // de la app. Con los 30 s de `requestTimeout` (pensados para requests
+        // normales) se quedaría corta en el plan Free de Render.
+        options: Options(
+          responseType: ResponseType.plain,
+          receiveTimeout: AppConfig.aiRequestTimeout,
+        ),
       );
       return response.data ?? '';
     } on DioException catch (error) {
