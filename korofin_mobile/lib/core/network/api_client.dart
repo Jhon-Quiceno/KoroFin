@@ -76,6 +76,7 @@ class ApiClient {
   SessionExpiredCallback? onSessionExpired;
 
   Future<String?>? _inFlightRefresh;
+  Future<bool>? _inFlightProbe;
 
   /// Acceso directo a Dio para casos que no encajan en los verbos de abajo
   /// (por ejemplo `multipart/form-data` o descargas en streaming).
@@ -162,15 +163,24 @@ class ApiClient {
 
       final RequestOptions original = error.requestOptions;
       if (!_idempotentMethods.contains(original.method.toUpperCase())) {
-        // Un POST/PUT/PATCH/DELETE que expiró por recepción pudo haber llegado
-        // al backend. Repetirlo solo duplicaría el movimiento, así que se le
-        // devuelve el control al usuario con un mensaje que dice la verdad.
-        throw const ApiException(
-          message: 'El servidor estaba despertando y ya está listo. '
-              'Volvé a intentarlo.',
-          isNetworkError: true,
-          ambiguousAfterSend: true,
-        );
+        if (_mayHaveReachedServer(error)) {
+          // Un POST/PUT/PATCH/DELETE que falló en fase de envío o recepción
+          // pudo haber llegado al backend. Repetirlo duplicaría el movimiento,
+          // así que se le devuelve el control al usuario con la verdad.
+          throw const ApiException(
+            message: 'El servidor estaba despertando y ya está listo. '
+                'Volvé a intentarlo.',
+            isNetworkError: true,
+            ambiguousAfterSend: true,
+          );
+        }
+        // La conexión nunca se estableció, así que el pedido no salió: se
+        // propaga como error de red común, sin marcarlo ambiguo. Esto importa
+        // porque la cola offline usa `ambiguousAfterSend` para decidir entre
+        // reintentar sola (`break`) y retener la entrada esperando una
+        // confirmación manual del usuario — marcar ambiguo algo que nunca
+        // salió dejaría un movimiento parado hasta que alguien lo toque.
+        throw mapDioException(error);
       }
 
       // Un solo reintento, fuera de [_send]: si vuelve a expirar se propaga sin
@@ -192,6 +202,14 @@ class ApiClient {
     }
   }
 
+  /// `true` si el fallo ocurrió con la conexión ya establecida, así que el
+  /// pedido pudo haber llegado al backend. Mismo criterio que
+  /// `mapDioException` en `dio_error_mapper.dart`: solo las fases de envío y
+  /// recepción implican que el pedido salió.
+  bool _mayHaveReachedServer(DioException error) =>
+      error.type == DioExceptionType.receiveTimeout ||
+      error.type == DioExceptionType.sendTimeout;
+
   /// `true` si el fallo es compatible con un backend dormido o inalcanzable:
   /// nunca llegó respuesta. Un 4xx/5xx del backend significa que está vivo y
   /// no debe disparar ningún sondeo.
@@ -205,9 +223,18 @@ class ApiClient {
         error.type == DioExceptionType.connectionError;
   }
 
+  /// Single-flight, igual que [_refreshOnce]: si una pantalla dispara varias
+  /// requests a la vez contra un backend dormido, todas esperan el mismo
+  /// sondeo en vez de abrir N sondeos de 300 s que competirían por el único
+  /// décimo de CPU que el contenedor necesita justamente para arrancar.
+  Future<bool> _probeHealth() =>
+      _inFlightProbe ??= _probeHealthOnce().whenComplete(() {
+        _inFlightProbe = null;
+      });
+
   /// Pega al health con el timeout largo de arranque en frío. `true` si el
   /// backend contestó. No lanza nunca.
-  Future<bool> _probeHealth() async {
+  Future<bool> _probeHealthOnce() async {
     try {
       final Response<dynamic> response = await _dio.get<dynamic>(
         _healthPath,

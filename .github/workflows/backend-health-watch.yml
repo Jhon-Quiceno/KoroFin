@@ -42,28 +42,29 @@ jobs:
 
           # 300 s cubre el arranque en frio por si el servicio estaba suspendido
           # cuando llego este chequeo. Medicion de 6 arranques reales: 188-214 s.
-          http_code=$(curl -s -o response.txt \
-            --max-time 300 \
-            -w '%{http_code}' \
-            https://korofin-backend.onrender.com/actuator/health || echo "000")
+          #
+          # El tiempo se mide sobre ESTE sondeo, no sobre uno posterior: si el
+          # primero ya desperto el servicio, cualquier sondeo siguiente responde
+          # rapido y la deteccion de "estaba dormido" seria inalcanzable.
+          probe=$(curl -s -o response.txt --max-time 300             -w '%{http_code} %{time_total}'             https://korofin-backend.onrender.com/actuator/health || echo '000 0')
 
-          elapsed=$(curl -s -o /dev/null --max-time 30 \
-            -w '%{time_total}' \
-            https://korofin-backend.onrender.com/actuator/health || echo "0")
+          http_code=${probe%% *}
+          elapsed=${probe##* }
 
           echo "http_code=$http_code"
-          echo "respuesta: $(cat response.txt)"
-          echo "tiempo del segundo sondeo: ${elapsed}s"
+          echo "tiempo del sondeo: ${elapsed}s"
+          if [ -f response.txt ]; then echo "respuesta: $(cat response.txt)"; fi
 
           if [ "$http_code" != "200" ]; then
-            echo "::error::El backend no respondió 200 (http_code=$http_code). El pinger externo puede estar caído o el servicio no arranca."
+            echo "::error::El backend no respondio 200 (http_code=$http_code). El pinger externo puede estar caido o el servicio no arranca."
             exit 1
           fi
 
-          # Si el primer sondeo tuvo que esperar el arranque, el servicio estaba
-          # dormido: el pinger externo no está haciendo su trabajo.
+          # Un backend despierto responde en ~1-5 s. Si este sondeo tuvo que
+          # esperar decenas de segundos, el servicio estaba suspendido: el
+          # pinger externo dejo de hacer su trabajo.
           if awk "BEGIN { exit !($elapsed > 15) }"; then
-            echo "::warning::El backend respondió, pero lento (${elapsed}s). Revisar que el pinger externo siga activo."
+            echo "::warning::El backend respondio, pero tardo ${elapsed}s: estaba dormido. Revisar que el pinger externo siga activo."
           fi
 
-          echo "Backend arriba y respondiendo rápido."
+          echo "Backend arriba, sondeo en ${elapsed}s."

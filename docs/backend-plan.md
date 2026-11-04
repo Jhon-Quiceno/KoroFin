@@ -961,8 +961,9 @@ el 2026-11-04, leyendo el `process running for` que cubre todo el arranque del p
 | 4 | 186,6 s | **200,1 s** |
 | 5 | 196,3 s | **209,5 s** |
 | 6 | 201,1 s | **214,2 s** |
+| 7 | (no registrado) | **225,5 s** |
 
-El peor caso observado es 214 s, y eso todavía no incluye lo que Render tarda en provisionar el
+El peor caso observado es 225 s, y eso todavía no incluye lo que Render tarda en provisionar el
 contenedor antes de que el proceso arranque.
 
 La causa es el CPU, no la memoria. Durante esos tres minutos las métricas de Render muestran el
@@ -997,7 +998,7 @@ Un servicio de monitoreo HTTP gratuito que pegue cada 5 minutos. Configuración 
 - URL: `https://korofin-backend.onrender.com/actuator/health`
 - Intervalo: cada **5 minutos** (por debajo de los 15 min que Render espera para suspender)
 - Método: `GET`
-- Timeout: el máximo que permita (el primer ping tras una suspensión tarda entre 188 y 214 s)
+- Timeout: el máximo que permita (el primer ping tras una suspensión tarda entre 188 y 225 s)
 - Activar la notificación por email ante fallo
 
 Alternativa equivalente: UptimeRobot, intervalo de 5 min.
@@ -1014,8 +1015,8 @@ eso significa que estaba dormido y por lo tanto el pinger externo dejó de funci
 **3. Colchón en la app (para cuando el pinger falle).**
 
 - `AppConfig.requestTimeout` = 30 s para la operación normal.
-- `AppConfig.coldStartTimeout` = 300 s solo para el sondeo que despierta el backend (~40 % de
-  margen sobre el peor caso de 214 s; un valor más justo repetiría el error de rendirse antes de
+- `AppConfig.coldStartTimeout` = 300 s solo para el sondeo que despierta el backend (~33 % de
+  margen sobre el peor caso de 225 s; un valor más justo repetiría el error de rendirse antes de
   tiempo).
 - `ApiClient.warmUp()` sondea `/actuator/health` al arrancar la app, antes del refresh de sesión.
 - Ante un timeout, `ApiClient` confirma con el health y reintenta **solo** métodos idempotentes

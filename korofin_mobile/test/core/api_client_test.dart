@@ -195,6 +195,67 @@ void main() {
           greaterThan(AppConfig.requestTimeout.inSeconds));
     });
 
+    test('un POST que falla al CONECTAR no se marca ambiguo: nunca salió',
+        () async {
+      // La cola offline usa `ambiguousAfterSend` para decidir entre
+      // reintentar sola y retener la entrada esperando confirmación manual.
+      // Un fallo de conexión significa que el pedido no salió, así que
+      // marcarlo ambiguo dejaría un movimiento parado hasta que alguien lo
+      // toque a mano.
+      final adapter = CapturingAdapter();
+      adapter.queue
+        ..add(<String, dynamic>{'throwType': DioExceptionType.connectionError})
+        ..add(<String, dynamic>{'body': <String, dynamic>{'status': 'UP'}});
+      final client = _clientWith(adapter, token: 'x');
+
+      await expectLater(
+        () => client.post('/api/expenses', body: <String, dynamic>{'amount': 1}),
+        throwsA(isA<ApiException>()
+            .having((e) => e.isNetworkError, 'isNetworkError', isTrue)
+            .having((e) => e.ambiguousAfterSend, 'ambiguousAfterSend', isFalse)),
+      );
+      expect(adapter.calls, 2);
+    });
+
+    test('un POST que expira por recepción sí se marca ambiguo', () async {
+      final adapter = CapturingAdapter();
+      adapter.queue
+        ..add(<String, dynamic>{'throwType': DioExceptionType.receiveTimeout})
+        ..add(<String, dynamic>{'body': <String, dynamic>{'status': 'UP'}});
+      final client = _clientWith(adapter, token: 'x');
+
+      await expectLater(
+        () => client.post('/api/expenses', body: <String, dynamic>{'amount': 1}),
+        throwsA(isA<ApiException>()
+            .having((e) => e.ambiguousAfterSend, 'ambiguousAfterSend', isTrue)),
+      );
+    });
+
+    test('varias requests en paralelo comparten un solo sondeo de health',
+        () async {
+      // Sin single-flight, N requests contra un backend dormido abrirían N
+      // sondeos de 300 s compitiendo por el único décimo de CPU que el
+      // contenedor necesita para arrancar.
+      final adapter = CapturingAdapter();
+      adapter.queue
+        ..add(<String, dynamic>{'throwType': DioExceptionType.receiveTimeout})
+        ..add(<String, dynamic>{'throwType': DioExceptionType.receiveTimeout})
+        ..add(<String, dynamic>{'body': <String, dynamic>{'status': 'UP'}})
+        ..add(<String, dynamic>{'body': <String, dynamic>{'a': 1}})
+        ..add(<String, dynamic>{'body': <String, dynamic>{'b': 2}});
+      final client = _clientWith(adapter, token: 'x');
+
+      await Future.wait<Response<dynamic>>(<Future<Response<dynamic>>>[
+        client.get('/api/expenses'),
+        client.get('/api/incomes'),
+      ]);
+
+      final int healthCalls = adapter.requests
+          .where((r) => r.path == '/actuator/health')
+          .length;
+      expect(healthCalls, 1);
+    });
+
     test('un POST que expira NO se reintenta solo: avisa que ya puede reintentar',
         () async {
       final adapter = CapturingAdapter();

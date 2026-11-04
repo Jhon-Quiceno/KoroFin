@@ -9,10 +9,11 @@ import '../../theme/app_theme.dart';
 /// login o al home.
 ///
 /// Esa espera no siempre es corta: en el plan Free de Render el backend se
-/// suspende tras 15 min sin tráfico y volver a arrancarlo tarda ~200 s medidos
-/// (`Started KorofinBackendApplication in 186.602 seconds`). Un splash callado
-/// durante tres minutos es indistinguible de una app colgada, así que a medida
-/// que la espera se alarga la pantalla va diciendo qué está pasando.
+/// suspende tras 15 min sin tráfico y volver a arrancarlo tarda entre 188 s y
+/// 225 s de proceso (7 arranques medidos; ver `AppConfig.coldStartTimeout`).
+/// Un splash callado durante casi cuatro minutos es indistinguible de una app
+/// colgada, así que a medida que la espera se alarga la pantalla va diciendo
+/// qué está pasando.
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
