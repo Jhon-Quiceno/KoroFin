@@ -1018,6 +1018,16 @@ eso significa que estaba dormido y por lo tanto el pinger externo dejó de funci
 - `AppConfig.coldStartTimeout` = 300 s solo para el sondeo que despierta el backend (~33 % de
   margen sobre el peor caso de 225 s; un valor más justo repetiría el error de rendirse antes de
   tiempo).
+- Ese presupuesto es **condicional**, no fijo: la diferencia entre un backend arrancando y una
+  conexión mala está en la propia señal del error de Dio. Un fallo en fase de envío o recepción
+  significa que la conexión TCP/TLS se estableció y el servidor colgó sin contestar — exactamente
+  la forma de Render aceptando la conexión mientras levanta el contenedor — y ahí se esperan los
+  300 s. Un fallo al conectar significa que nunca hubo conexión (sin red, DNS que no resuelve,
+  host inalcanzable): no hay nadie arrancando del otro lado, así que el sondeo se limita a los
+  30 s de `requestTimeout`. Esperar minutos ahí solo colgaría al usuario sin ninguna chance.
+- El cliente recuerda el último sondeo fallido por 10 s y no lo repite en ese lapso. Sin eso, un
+  backend que no despierta acumulaba dos esperas completas seguidas (la de `warmUp` y la del
+  primer `_send`) con la app muda en el medio.
 - `ApiClient.warmUp()` sondea `/actuator/health` al arrancar la app, antes del refresh de sesión.
 - Ante un timeout, `ApiClient` confirma con el health y reintenta **solo** métodos idempotentes
   (`GET`/`HEAD`). Un `POST` que expiró no se repite solo —podría duplicar un movimiento—: devuelve
