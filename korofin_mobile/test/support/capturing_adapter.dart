@@ -11,8 +11,10 @@ import 'package:dio/dio.dart';
 class CapturingAdapter implements HttpClientAdapter {
   CapturingAdapter({this.status = 200, this.body, this.throwType});
 
-  /// Respuestas encoladas: `{ 'status': int, 'body': Object? }`. Si está vacío,
-  /// se usan [status]/[body]/[throwType].
+  /// Respuestas encoladas: `{ 'status': int, 'body': Object? }` para una
+  /// respuesta normal, o `{ 'throwType': DioExceptionType }` para simular un
+  /// fallo de transporte en esa llamada puntual. Si está vacío, se usan
+  /// [status]/[body]/[throwType].
   final List<Map<String, dynamic>> queue = <Map<String, dynamic>>[];
 
   int status;
@@ -33,6 +35,11 @@ class CapturingAdapter implements HttpClientAdapter {
 
     if (queue.isNotEmpty) {
       final Map<String, dynamic> next = queue.removeAt(0);
+      final DioExceptionType? queuedThrow =
+          next['throwType'] as DioExceptionType?;
+      if (queuedThrow != null) {
+        throw DioException(requestOptions: options, type: queuedThrow);
+      }
       return ResponseBody.fromString(
         jsonEncode(next['body'] ?? <String, dynamic>{}),
         next['status'] as int? ?? 200,

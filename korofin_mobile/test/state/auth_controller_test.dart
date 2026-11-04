@@ -1,5 +1,7 @@
+import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:korofin_mobile/core/network/api_client.dart';
 import 'package:korofin_mobile/core/network/api_exception.dart';
 import 'package:korofin_mobile/core/providers.dart';
 import 'package:korofin_mobile/core/storage/session_store.dart';
@@ -8,6 +10,8 @@ import 'package:korofin_mobile/models/auth_session.dart';
 import 'package:korofin_mobile/models/user.dart';
 import 'package:korofin_mobile/state/auth/auth_controller.dart';
 import 'package:korofin_mobile/state/auth/auth_state.dart';
+
+import '../support/capturing_adapter.dart';
 
 User _user() => const User(
       id: 1,
@@ -68,11 +72,22 @@ class _FakeAuthRepository implements AuthRepository {
 ProviderContainer _container({
   required SessionStore store,
   required AuthRepository repo,
+  CapturingAdapter? adapter,
 }) {
+  // Siempre se inyecta un adaptador falso: el bootstrap sondea `/actuator/health`
+  // para despertar el backend, y sin esto cada test saldría a la red de verdad.
+  final CapturingAdapter httpAdapter =
+      adapter ?? CapturingAdapter(body: <String, dynamic>{'status': 'UP'});
   final container = ProviderContainer(
     overrides: <Override>[
       sessionStoreProvider.overrideWithValue(store),
       authRepositoryProvider.overrideWithValue(repo),
+      apiClientProvider.overrideWithValue(
+        ApiClient(
+          readAccessToken: () => null,
+          dio: Dio()..httpClientAdapter = httpAdapter,
+        ),
+      ),
     ],
   );
   addTearDown(container.dispose);
@@ -153,5 +168,63 @@ void main() {
         container.read(authControllerProvider).status, AuthStatus.unauthenticated);
     expect(container.read(accessTokenProvider), isNull);
     expect(await store.readRefreshToken(), isNull);
+  });
+
+  group('despertar el backend en el bootstrap', () {
+    test('con sesión guardada, sondea el health ANTES de pedir el refresh',
+        () async {
+      // El refresh es un POST: si sale con el backend dormido, expira y no se
+      // puede reintentar solo. Despertarlo primero es lo que evita que el
+      // arranque de la app muera contra un servicio que todavía está booteando.
+      final adapter = CapturingAdapter(body: <String, dynamic>{'status': 'UP'});
+      final store = InMemorySessionStore()..saveRefreshToken('R1');
+      final repo = _FakeAuthRepository();
+      final container =
+          _container(store: store, repo: repo, adapter: adapter);
+
+      await container.read(authControllerProvider.notifier).ready;
+
+      expect(adapter.calls, 1);
+      expect(adapter.lastRequest.path, '/actuator/health');
+      expect(repo.refreshCalls, 1);
+      expect(container.read(authControllerProvider).status,
+          AuthStatus.authenticated);
+    });
+
+    test('sin sesión guardada no bloquea el arranque esperando el health',
+        () async {
+      // Acá el destino es el login: hacer esperar al usuario los ~200 s del
+      // arranque frente a un splash sería peor que dejarlo escribir sus
+      // credenciales mientras el backend despierta en paralelo.
+      final adapter = CapturingAdapter(body: <String, dynamic>{'status': 'UP'});
+      final store = InMemorySessionStore();
+      final container = _container(
+        store: store,
+        repo: _FakeAuthRepository(),
+        adapter: adapter,
+      );
+
+      await container.read(authControllerProvider.notifier).ready;
+
+      expect(container.read(authControllerProvider).status,
+          AuthStatus.unauthenticated);
+    });
+
+    test('si el backend no despierta, el bootstrap sigue y no se cuelga',
+        () async {
+      final adapter =
+          CapturingAdapter(throwType: DioExceptionType.connectionError);
+      final store = InMemorySessionStore()..saveRefreshToken('R1');
+      final container = _container(
+        store: store,
+        repo: _FakeAuthRepository(failRefresh: true),
+        adapter: adapter,
+      );
+
+      await container.read(authControllerProvider.notifier).ready;
+
+      expect(container.read(authControllerProvider).status,
+          AuthStatus.unauthenticated);
+    });
   });
 }

@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 import 'package:dio/io.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:korofin_mobile/core/config/app_config.dart';
 import 'package:korofin_mobile/core/network/api_client.dart';
 import 'package:korofin_mobile/core/network/api_exception.dart';
 
@@ -154,6 +155,123 @@ void main() {
       expect(validate, isNotNull);
       // Sin certificado (null) se rechaza por defecto: fail-closed.
       expect(validate!(null, 'api.korofin.com', 443), isFalse);
+    });
+  });
+
+  group('despertar el backend tras un timeout (cold start del plan Free)', () {
+    test('un GET que expira reintenta tras confirmar el health y devuelve los '
+        'datos', () async {
+      final adapter = CapturingAdapter();
+      adapter.queue
+        // 1) el GET original expira: el backend está arrancando.
+        ..add(<String, dynamic>{'throwType': DioExceptionType.receiveTimeout})
+        // 2) el sondeo de /actuator/health espera el arranque y lo confirma.
+        ..add(<String, dynamic>{'body': <String, dynamic>{'status': 'UP'}})
+        // 3) el reintento del GET original ya encuentra el backend despierto.
+        ..add(<String, dynamic>{'body': <String, dynamic>{'total': 42}});
+      final client = _clientWith(adapter, token: 'x');
+
+      final Response<dynamic> response = await client.get('/api/expenses');
+
+      expect(response.data, <String, dynamic>{'total': 42});
+      expect(adapter.calls, 3);
+      expect(adapter.requests[1].path, '/actuator/health');
+      expect(adapter.requests[2].path, '/api/expenses');
+    });
+
+    test('el sondeo de health usa el timeout largo de cold start, no el normal',
+        () async {
+      final adapter = CapturingAdapter();
+      adapter.queue
+        ..add(<String, dynamic>{'throwType': DioExceptionType.receiveTimeout})
+        ..add(<String, dynamic>{'body': <String, dynamic>{'status': 'UP'}})
+        ..add(<String, dynamic>{'body': <String, dynamic>{'ok': true}});
+      final client = _clientWith(adapter, token: 'x');
+
+      await client.get('/api/expenses');
+
+      expect(adapter.requests[1].receiveTimeout, AppConfig.coldStartTimeout);
+      expect(adapter.requests[1].receiveTimeout!.inSeconds,
+          greaterThan(AppConfig.requestTimeout.inSeconds));
+    });
+
+    test('un POST que expira NO se reintenta solo: avisa que ya puede reintentar',
+        () async {
+      final adapter = CapturingAdapter();
+      adapter.queue
+        ..add(<String, dynamic>{'throwType': DioExceptionType.receiveTimeout})
+        ..add(<String, dynamic>{'body': <String, dynamic>{'status': 'UP'}});
+      final client = _clientWith(adapter, token: 'x');
+
+      await expectLater(
+        () => client.post('/api/expenses', body: <String, dynamic>{'amount': 1}),
+        throwsA(isA<ApiException>()
+            .having((e) => e.isNetworkError, 'isNetworkError', isTrue)
+            .having((e) => e.message, 'message', contains('despertando'))),
+      );
+      // Solo el POST original y el health: el POST jamás se repite solo, para
+      // no duplicar un gasto que el backend sí pudo haber alcanzado a guardar.
+      expect(adapter.calls, 2);
+      expect(adapter.requests[1].path, '/actuator/health');
+    });
+
+    test('si el health tampoco responde, el error de red se propaga tal cual',
+        () async {
+      final adapter = CapturingAdapter();
+      adapter.queue
+        ..add(<String, dynamic>{'throwType': DioExceptionType.receiveTimeout})
+        ..add(<String, dynamic>{'throwType': DioExceptionType.connectionError});
+      final client = _clientWith(adapter, token: 'x');
+
+      await expectLater(
+        () => client.get('/api/expenses'),
+        throwsA(isA<ApiException>()
+            .having((e) => e.isNetworkError, 'isNetworkError', isTrue)),
+      );
+      expect(adapter.calls, 2);
+    });
+
+    test('el sondeo de despertar se intenta una sola vez por request', () async {
+      final adapter = CapturingAdapter();
+      adapter.queue
+        ..add(<String, dynamic>{'throwType': DioExceptionType.receiveTimeout})
+        ..add(<String, dynamic>{'body': <String, dynamic>{'status': 'UP'}})
+        // El reintento vuelve a expirar: no se dispara otro ciclo de despertar.
+        ..add(<String, dynamic>{'throwType': DioExceptionType.receiveTimeout});
+      final client = _clientWith(adapter, token: 'x');
+
+      await expectLater(
+        () => client.get('/api/expenses'),
+        throwsA(isA<ApiException>()),
+      );
+      expect(adapter.calls, 3);
+    });
+
+    test('un 404 del backend no dispara ningún sondeo de despertar', () async {
+      final adapter = CapturingAdapter(
+        status: 404,
+        body: <String, dynamic>{'status': 404, 'message': 'No encontrado'},
+      );
+      final client = _clientWith(adapter, token: 'x');
+
+      await expectLater(
+        () => client.get('/api/debts/999'),
+        throwsA(isA<ApiException>()),
+      );
+      expect(adapter.calls, 1);
+    });
+
+    test('warmUp sondea el health con el timeout largo y no lanza si falla',
+        () async {
+      final adapter =
+          CapturingAdapter(throwType: DioExceptionType.connectionError);
+      final client = _clientWith(adapter, token: null);
+
+      await expectLater(client.warmUp(), completes);
+
+      expect(adapter.calls, 1);
+      expect(adapter.lastRequest.path, '/actuator/health');
+      expect(adapter.lastRequest.receiveTimeout, AppConfig.coldStartTimeout);
     });
   });
 }
