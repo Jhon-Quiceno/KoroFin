@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/services.dart';
 import 'package:notification_listener_service/notification_listener_service.dart';
 
 /// Notificación cruda de Android, recortada a los únicos campos que necesita
@@ -23,6 +24,11 @@ abstract interface class NequiNotificationGateway {
   /// Abre los ajustes del sistema para que el usuario active el acceso a
   /// notificaciones; devuelve `true` una vez concedido.
   Future<bool> requestPermission();
+
+  /// Abre "Información de la app" del sistema. Ahí se habilita la opción
+  /// "Permitir ajustes restringidos", necesaria en Android 13+ cuando la app
+  /// se instaló por APK y el acceso a notificaciones aparece bloqueado.
+  Future<void> openAppDetails();
 }
 
 /// Implementación real sobre `notification_listener_service`. Android-only:
@@ -51,5 +57,13 @@ class AndroidNequiNotificationGateway implements NequiNotificationGateway {
   Future<bool> requestPermission() {
     if (!Platform.isAndroid) return Future<bool>.value(false);
     return NotificationListenerService.requestPermission();
+  }
+
+  static const MethodChannel _appSettings = MethodChannel('korofin/app_settings');
+
+  @override
+  Future<void> openAppDetails() async {
+    if (!Platform.isAndroid) return;
+    await _appSettings.invokeMethod<bool>('openAppDetails');
   }
 }
