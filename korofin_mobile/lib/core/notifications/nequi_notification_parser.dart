@@ -40,23 +40,33 @@ class NequiNotificationParser {
     caseSensitive: false,
   );
 
+  /// Monto con signo pesos opcional: Nequi lo manda tanto como "$50.000" como
+  /// "1000" a secas (formato real observado: "X te envió 1000, ¡lo mejor!").
+  /// Los miles van separados por punto, así que un punto o coma que no sea
+  /// separador de miles queda fuera del monto.
+  static const String _amount = r'\$?\s*(?<amount>\d{1,3}(?:\.\d{3})+|\d+)';
+
+  /// Fin del nombre del destinatario/comercio: el primer signo de puntuación
+  /// o el final del texto.
+  static const String _targetEnd = r'(?:[.,!]|$)';
+
   static final RegExp _incomeTransfiya = RegExp(
-    r'Te enviaron\s*\$(?<amount>[\d.,]+)\s*por Transfiya',
+    'Te enviaron\\s*$_amount\\s*por Transfiya',
     caseSensitive: false,
   );
 
   static final RegExp _incomeDirect = RegExp(
-    r'^.+?\s+te envi[oó]\s*\$(?<amount>[\d.,]+)\.',
+    '^.+?\\s+te envi[oó]\\s*$_amount(?![\\d])',
     caseSensitive: false,
   );
 
   static final RegExp _expenseSent = RegExp(
-    r'^Enviaste\s*\$(?<amount>[\d.,]+)\s+a\s+(?<target>.+?)\.',
+    '^Enviaste\\s*$_amount\\s+a\\s+(?<target>.+?)$_targetEnd',
     caseSensitive: false,
   );
 
   static final RegExp _expensePaid = RegExp(
-    r'^Pagaste\s*\$(?<amount>[\d.,]+)\s+en\s+(?<target>.+?)\.',
+    '^Pagaste\\s*$_amount\\s+en\\s+(?<target>.+?)$_targetEnd',
     caseSensitive: false,
   );
 

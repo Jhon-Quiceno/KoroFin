@@ -24,6 +24,24 @@ void main() {
         expect((result as NequiIncomeDetected).amount, 15500);
       });
 
+      test('formato real "Envío" sin signo pesos ni punto detecta ingreso', () {
+        final NequiParseResult result = NequiNotificationParser.parse(
+          title: 'Envío',
+          body: 'ANUAR MARRIAGA te envió 1000, ¡lo mejor!',
+        );
+        expect(result, isA<NequiIncomeDetected>());
+        expect((result as NequiIncomeDetected).amount, 1000);
+      });
+
+      test('formato real "Envío" con miles separados por punto detecta el monto completo', () {
+        final NequiParseResult result = NequiNotificationParser.parse(
+          title: 'Envío',
+          body: 'ANUAR MARRIAGA te envió 25.000, ¡lo mejor!',
+        );
+        expect(result, isA<NequiIncomeDetected>());
+        expect((result as NequiIncomeDetected).amount, 25000);
+      });
+
       test('mensaje de Transfiya detecta ingreso con el monto', () {
         final NequiParseResult result = NequiNotificationParser.parse(
           title: '¡Te enviaron plata!',
