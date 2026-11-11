@@ -26,19 +26,41 @@ class _FixedAuthController extends AuthController {
 
   @override
   AuthState build() => _fixed;
+
+  /// Simula una transición de auth (bootstrap, login, logout).
+  void emit(AuthState next) => state = next;
 }
 
 class _FakeBiometricAuthenticator implements BiometricAuthenticator {
-  _FakeBiometricAuthenticator({this.available = true, this.succeeds = true});
+  _FakeBiometricAuthenticator({
+    this.available = true,
+    this.succeeds = true,
+    this.whileAuthenticating,
+  });
 
   bool available;
   bool succeeds;
+
+  /// Simula lo que hace el prompt nativo de huella mientras está abierto
+  /// (por ejemplo, pausar y reanudar la actividad).
+  void Function()? whileAuthenticating;
 
   @override
   Future<bool> isAvailable() async => available;
 
   @override
-  Future<bool> authenticate({required String reason}) async => succeeds;
+  Future<bool> authenticate({required String reason}) async {
+    whileAuthenticating?.call();
+    return succeeds;
+  }
+}
+
+/// Simula que la app pasó a background (pantalla apagada, otra app) y volvió.
+void _backgroundAndBack(LockController notifier) {
+  notifier.didChangeAppLifecycleState(AppLifecycleState.inactive);
+  notifier.didChangeAppLifecycleState(AppLifecycleState.hidden);
+  notifier.didChangeAppLifecycleState(AppLifecycleState.paused);
+  notifier.didChangeAppLifecycleState(AppLifecycleState.resumed);
 }
 
 ProviderContainer _container({
@@ -86,7 +108,7 @@ void main() {
     final notifier = container.read(lockControllerProvider.notifier);
     await notifier.enable();
 
-    notifier.didChangeAppLifecycleState(AppLifecycleState.resumed);
+    _backgroundAndBack(notifier);
 
     expect(container.read(lockControllerProvider).locked, isTrue);
   });
@@ -98,7 +120,7 @@ void main() {
     final notifier = container.read(lockControllerProvider.notifier);
     // El bloqueo nunca se habilitó.
 
-    notifier.didChangeAppLifecycleState(AppLifecycleState.resumed);
+    _backgroundAndBack(notifier);
 
     expect(container.read(lockControllerProvider).locked, isFalse);
   });
@@ -109,7 +131,7 @@ void main() {
     final notifier = container.read(lockControllerProvider.notifier);
     await notifier.enable();
 
-    notifier.didChangeAppLifecycleState(AppLifecycleState.resumed);
+    _backgroundAndBack(notifier);
 
     expect(container.read(lockControllerProvider).locked, isFalse);
   });
@@ -131,7 +153,7 @@ void main() {
     );
     final notifier = container.read(lockControllerProvider.notifier);
     await notifier.enable();
-    notifier.didChangeAppLifecycleState(AppLifecycleState.resumed);
+    _backgroundAndBack(notifier);
 
     final bool ok = await notifier.unlockWithBiometrics();
 
@@ -146,7 +168,7 @@ void main() {
     );
     final notifier = container.read(lockControllerProvider.notifier);
     await notifier.enable();
-    notifier.didChangeAppLifecycleState(AppLifecycleState.resumed);
+    _backgroundAndBack(notifier);
 
     final bool ok = await notifier.unlockWithBiometrics();
 
@@ -159,12 +181,120 @@ void main() {
         _container(authState: AuthState.authenticated(_user()));
     final notifier = container.read(lockControllerProvider.notifier);
     await notifier.enable();
-    notifier.didChangeAppLifecycleState(AppLifecycleState.resumed);
+    _backgroundAndBack(notifier);
 
     await notifier.disable();
 
     final state = container.read(lockControllerProvider);
     expect(state.enabled, isFalse);
     expect(state.locked, isFalse);
+  });
+
+  test('volver de inactive sin pasar por background no bloquea', () async {
+    final container =
+        _container(authState: AuthState.authenticated(_user()));
+    final notifier = container.read(lockControllerProvider.notifier);
+    await notifier.enable();
+
+    notifier.didChangeAppLifecycleState(AppLifecycleState.inactive);
+    notifier.didChangeAppLifecycleState(AppLifecycleState.resumed);
+
+    expect(container.read(lockControllerProvider).locked, isFalse);
+  });
+
+  test(
+      'la pausa que causa el propio prompt de huella no vuelve a bloquear tras desbloquear',
+      () async {
+    late final LockController notifier;
+    final biometrics = _FakeBiometricAuthenticator(
+      whileAuthenticating: () => _backgroundAndBack(notifier),
+    );
+    final container = _container(
+      authState: AuthState.authenticated(_user()),
+      biometrics: biometrics,
+    );
+    notifier = container.read(lockControllerProvider.notifier);
+    await notifier.enable();
+    _backgroundAndBack(notifier);
+    expect(container.read(lockControllerProvider).locked, isTrue);
+
+    final bool ok = await notifier.unlockWithBiometrics();
+    // El resumed del prompt puede llegar después de que termina la autenticación.
+    notifier.didChangeAppLifecycleState(AppLifecycleState.resumed);
+
+    expect(ok, isTrue);
+    expect(container.read(lockControllerProvider).locked, isFalse);
+  });
+
+  test(
+      'cerrar sesión con la app bloqueada y volver a entrar con contraseña no pide huella',
+      () async {
+    final container =
+        _container(authState: AuthState.authenticated(_user()));
+    final notifier = container.read(lockControllerProvider.notifier);
+    await notifier.enable();
+    _backgroundAndBack(notifier);
+    expect(container.read(lockControllerProvider).locked, isTrue);
+
+    final auth =
+        container.read(authControllerProvider.notifier) as _FixedAuthController;
+    auth.emit(const AuthState.unauthenticated());
+    await Future<void>.delayed(Duration.zero);
+    auth.emit(AuthState.authenticated(_user()));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(container.read(lockControllerProvider).locked, isFalse);
+  });
+
+  test('al abrir la app con sesión guardada y bloqueo habilitado, pide huella',
+      () async {
+    final lockStore = InMemoryLockStore();
+    await lockStore.setEnabled(true);
+    final container = _container(
+      authState: const AuthState.unknown(),
+      lockStore: lockStore,
+    );
+    container.read(lockControllerProvider);
+    await Future<void>.delayed(Duration.zero);
+
+    final auth =
+        container.read(authControllerProvider.notifier) as _FixedAuthController;
+    auth.emit(AuthState.authenticated(_user()));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(container.read(lockControllerProvider).locked, isTrue);
+  });
+
+  test('con bloqueo deshabilitado, abrir la app con sesión guardada no pide huella',
+      () async {
+    final container = _container(authState: const AuthState.unknown());
+    container.read(lockControllerProvider);
+    await Future<void>.delayed(Duration.zero);
+
+    final auth =
+        container.read(authControllerProvider.notifier) as _FixedAuthController;
+    auth.emit(AuthState.authenticated(_user()));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(container.read(lockControllerProvider).locked, isFalse);
+  });
+
+  test('iniciar sesión con contraseña y bloqueo habilitado no pide huella',
+      () async {
+    final lockStore = InMemoryLockStore();
+    await lockStore.setEnabled(true);
+    final container = _container(
+      authState: const AuthState.unauthenticated(),
+      lockStore: lockStore,
+    );
+    container.read(lockControllerProvider);
+    await Future<void>.delayed(Duration.zero);
+
+    final auth =
+        container.read(authControllerProvider.notifier) as _FixedAuthController;
+    auth.emit(AuthState.authenticated(_user()));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(container.read(lockControllerProvider).locked, isFalse);
   });
 }
