@@ -41,16 +41,38 @@ class LockController extends Notifier<AppLockState> with WidgetsBindingObserver 
     state = state.copyWith(enabled: enabled);
   }
 
+  /// `true` si la app pasó de verdad a background (pantalla apagada, otra app)
+  /// desde el último `resumed`. Un `resumed` que viene solo de `inactive`
+  /// (persiana de notificaciones, diálogo del sistema) no bloquea.
+  bool _wentToBackground = false;
+
+  /// Mientras el prompt nativo de huella está abierto, el sistema pausa y
+  /// reanuda la actividad. Esas transiciones las causa el propio desbloqueo y
+  /// no deben volver a bloquear: si no, la app queda en un bucle pidiendo
+  /// huella sin fin.
+  bool _authenticating = false;
+
   // El parámetro se renombra a propósito: `state` ya es la propiedad de
   // [Notifier] que guarda el [AppLockState], y usarla acá pisaría ese getter.
   @override
   // ignore: avoid_renaming_method_parameters
   void didChangeAppLifecycleState(AppLifecycleState appLifecycleState) {
-    if (appLifecycleState != AppLifecycleState.resumed) return;
-    final bool hasActiveSession =
-        ref.read(authControllerProvider).status == AuthStatus.authenticated;
-    if (state.enabled && hasActiveSession) {
-      state = state.copyWith(locked: true);
+    switch (appLifecycleState) {
+      case AppLifecycleState.hidden:
+      case AppLifecycleState.paused:
+        if (!_authenticating) _wentToBackground = true;
+      case AppLifecycleState.resumed:
+        final bool returningFromBackground = _wentToBackground;
+        _wentToBackground = false;
+        if (!returningFromBackground) return;
+        final bool hasActiveSession =
+            ref.read(authControllerProvider).status == AuthStatus.authenticated;
+        if (state.enabled && hasActiveSession) {
+          state = state.copyWith(locked: true);
+        }
+      case AppLifecycleState.inactive:
+      case AppLifecycleState.detached:
+        break;
     }
   }
 
@@ -69,8 +91,13 @@ class LockController extends Notifier<AppLockState> with WidgetsBindingObserver 
   }
 
   Future<bool> unlockWithBiometrics() async {
-    final bool ok = await _repo.authenticateWithBiometrics();
-    if (ok) state = state.copyWith(locked: false);
-    return ok;
+    _authenticating = true;
+    try {
+      final bool ok = await _repo.authenticateWithBiometrics();
+      if (ok) state = state.copyWith(locked: false);
+      return ok;
+    } finally {
+      _authenticating = false;
+    }
   }
 }
