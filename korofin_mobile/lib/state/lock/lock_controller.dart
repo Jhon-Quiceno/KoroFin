@@ -30,15 +30,54 @@ class LockController extends Notifier<AppLockState> with WidgetsBindingObserver 
   AppLockState build() {
     WidgetsBinding.instance.addObserver(this);
     ref.onDispose(() => WidgetsBinding.instance.removeObserver(this));
+    // Si la sesión ya estaba restaurada cuando se construye este controller,
+    // cuenta como apertura de la app: el listener solo ve los cambios futuros.
+    _restoredSessionPendingLock =
+        ref.read(authControllerProvider).status == AuthStatus.authenticated;
+    ref.listen<AuthStatus>(
+      authControllerProvider.select((auth) => auth.status),
+      _onAuthStatusChanged,
+    );
     unawaited(_loadEnabled());
     return const AppLockState.initial();
   }
 
   LockRepository get _repo => ref.read(lockRepositoryProvider);
 
+  /// `true` cuando la sesión se restauró al abrir la app (bootstrap) y todavía
+  /// no se aplicó el bloqueo, porque la preferencia `enabled` puede cargar
+  /// después de que termina el bootstrap.
+  bool _restoredSessionPendingLock = false;
+
   Future<void> _loadEnabled() async {
     final bool enabled = await _repo.isEnabled();
     state = state.copyWith(enabled: enabled);
+    _applyRestoredSessionLock();
+  }
+
+  /// - Sesión restaurada al abrir la app (`unknown` -> `authenticated`): pide
+  ///   huella, igual que al volver del background.
+  /// - Login con contraseña (`unauthenticated` -> `authenticated`): no pide
+  ///   huella; la contraseña ya autenticó al usuario.
+  /// - Sin sesión: limpia el bloqueo. Si no, cerrar sesión desde la pantalla
+  ///   de bloqueo dejaba `locked` en `true` y el siguiente login con
+  ///   contraseña caía de nuevo en la huella.
+  void _onAuthStatusChanged(AuthStatus? previous, AuthStatus next) {
+    if (next != AuthStatus.authenticated) {
+      _restoredSessionPendingLock = false;
+      if (state.locked) state = state.copyWith(locked: false);
+      return;
+    }
+    if (previous == AuthStatus.unknown) {
+      _restoredSessionPendingLock = true;
+      _applyRestoredSessionLock();
+    }
+  }
+
+  void _applyRestoredSessionLock() {
+    if (!_restoredSessionPendingLock || !state.enabled) return;
+    _restoredSessionPendingLock = false;
+    state = state.copyWith(locked: true);
   }
 
   /// `true` si la app pasó de verdad a background (pantalla apagada, otra app)
@@ -81,6 +120,7 @@ class LockController extends Notifier<AppLockState> with WidgetsBindingObserver 
   /// Activa el bloqueo biométrico. No bloquea la sesión actual: recién aplica
   /// en el próximo regreso desde background.
   Future<void> enable() async {
+    _restoredSessionPendingLock = false;
     await _repo.enable();
     state = state.copyWith(enabled: true, locked: false);
   }
