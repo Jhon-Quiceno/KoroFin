@@ -109,4 +109,6 @@ class NequiCaptureController extends Notifier<PendingNequiMatch?> {
   void dismiss() => state = null;
 
   Future<bool> requestPermission() => _notifications.requestPermission();
+
+  Future<void> openAppDetails() => _notifications.openAppDetails();
 }
