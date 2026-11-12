@@ -16,6 +16,10 @@ final lockRepositoryProvider = Provider<LockRepository>(
   ),
 );
 
+/// Reloj del bloqueo. Es un provider para poder controlar el tiempo en los
+/// tests del período de gracia.
+final lockClockProvider = Provider<DateTime Function()>((ref) => DateTime.now);
+
 final lockControllerProvider =
     NotifierProvider<LockController, AppLockState>(LockController.new);
 
@@ -80,10 +84,16 @@ class LockController extends Notifier<AppLockState> with WidgetsBindingObserver 
     state = state.copyWith(locked: true);
   }
 
-  /// `true` si la app pasó de verdad a background (pantalla apagada, otra app)
-  /// desde el último `resumed`. Un `resumed` que viene solo de `inactive`
-  /// (persiana de notificaciones, diálogo del sistema) no bloquea.
-  bool _wentToBackground = false;
+  /// Tiempo que la app puede pasar en background sin volver a pedir huella.
+  /// Evita pedirla por salidas breves (contestar un mensaje, copiar un código,
+  /// abrir Nequi) sin dejar la app abierta si el teléfono queda desatendido.
+  static const Duration backgroundGracePeriod = Duration(minutes: 2);
+
+  /// Momento en que la app pasó de verdad a background (pantalla apagada, otra
+  /// app) desde el último `resumed`; `null` si no salió. Un `resumed` que
+  /// viene solo de `inactive` (persiana de notificaciones, diálogo del
+  /// sistema) no bloquea.
+  DateTime? _backgroundedAt;
 
   /// Mientras el prompt nativo de huella está abierto, el sistema pausa y
   /// reanuda la actividad. Esas transiciones las causa el propio desbloqueo y
@@ -99,11 +109,17 @@ class LockController extends Notifier<AppLockState> with WidgetsBindingObserver 
     switch (appLifecycleState) {
       case AppLifecycleState.hidden:
       case AppLifecycleState.paused:
-        if (!_authenticating) _wentToBackground = true;
+        // `hidden` y `paused` llegan seguidos: cuenta el primero.
+        if (!_authenticating) _backgroundedAt ??= ref.read(lockClockProvider)();
       case AppLifecycleState.resumed:
-        final bool returningFromBackground = _wentToBackground;
-        _wentToBackground = false;
-        if (!returningFromBackground) return;
+        final DateTime? backgroundedAt = _backgroundedAt;
+        _backgroundedAt = null;
+        if (backgroundedAt == null) return;
+        final Duration away =
+            ref.read(lockClockProvider)().difference(backgroundedAt);
+        // Un tiempo negativo significa que el reloj del teléfono se atrasó: no
+        // se puede confiar en la medición, así que se pide huella.
+        if (!away.isNegative && away < backgroundGracePeriod) return;
         final bool hasActiveSession =
             ref.read(authControllerProvider).status == AuthStatus.authenticated;
         if (state.enabled && hasActiveSession) {
