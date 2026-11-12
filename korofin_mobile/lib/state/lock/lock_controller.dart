@@ -117,7 +117,9 @@ class LockController extends Notifier<AppLockState> with WidgetsBindingObserver 
         if (backgroundedAt == null) return;
         final Duration away =
             ref.read(lockClockProvider)().difference(backgroundedAt);
-        if (away < backgroundGracePeriod) return;
+        // Un tiempo negativo significa que el reloj del teléfono se atrasó: no
+        // se puede confiar en la medición, así que se pide huella.
+        if (!away.isNegative && away < backgroundGracePeriod) return;
         final bool hasActiveSession =
             ref.read(authControllerProvider).status == AuthStatus.authenticated;
         if (state.enabled && hasActiveSession) {

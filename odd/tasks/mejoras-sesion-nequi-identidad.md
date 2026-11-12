@@ -20,13 +20,13 @@ Test runner: `cd korofin_mobile && flutter test` / `flutter analyze`.
 
 ## Tasks
 
-- [ ] T1 (S1): un fallo transitorio del refresh no borra la sesión; solo 401/403. — inline — Risk: item 2
-- [ ] T2 (S1): período de gracia del bloqueo con huella al volver del background. — inline — Risk: item 2
-- [ ] T3 (S2, S4): aviso propio con acciones "Registrar" / "Descartar"; "Registrar" abre la app con el formulario pre-llenado. — inline
-- [ ] T4 (S2, S4): al abrir la app, ofrecer las notificaciones de Nequi que sigan en la bandeja (cubre el caso de la app cerrada), sin repetir. — inline
+- [x] T1 (S1): un fallo transitorio del refresh no borra la sesión; solo 401/403. — inline — Risk: item 2 — `70fbc0d` (rama `fix/sesion-duracion`)
+- [x] T2 (S1): período de gracia de 2 min del bloqueo con huella al volver del background. — inline — Risk: item 2 — `fce2f99` + endurecimiento ante reloj atrasado
+- [x] T3 (S2, S4): aviso propio con acciones "Registrar" / "Descartar"; "Registrar" abre la app con el formulario pre-llenado. — inline — `ac3d8db` (rama `feat/nequi-flujo-simple`)
+- [x] T4 (S2, S4): al abrir la app, ofrecer las notificaciones de Nequi que sigan en la bandeja (cubre el caso de la app cerrada), sin repetir. — inline — `ac3d8db`
 - [ ] T5 (S3): reconocer el envío propio con el texto real. — bloqueado, falta muestra
 - [x] T6 (S7): skill `logo-design` instalada en `.claude/skills/logo-design` (solo local, excluida de git).
-- [ ] T7 (S5, S6): crítica de la identidad actual + tres conceptos de logo; checkpoint con el usuario.
+- [ ] T7 (S5, S6): crítica de la identidad actual + tres conceptos de logo (`design/identidad/conceptos/conceptos.png`); esperando que el usuario elija dirección.
 - [ ] T8 (S5): kit del logo elegido + íconos de la app. — espera T7
 - [ ] T9 (S5): rediseño de login y registro con la identidad elegida. — espera T7
 
@@ -43,3 +43,7 @@ Test runner: `cd korofin_mobile && flutter test` / `flutter analyze`.
   6. las skills en local para el proyecto apenas."
 - L2: `JWT_REFRESH_EXPIRATION_MS=604800000` (7 días) y access 15 min en `.env.example` y docs; el valor real en Render no se verificó. `AuthController._bootstrap` y `onRefresh` borran la sesión ante cualquier `ApiException`, incluidos timeouts.
 - L3: Engram no está disponible en esta sesión: espejo `odd/mejoras-sesion-nequi-identidad/tasks` pendiente.
+- L4: T1-T2 verificados por un verificador independiente (solo lectura del diff): PASS en ambos, sin bloqueantes. Avisos: el período de gracia usaba el reloj de pared (corregido: un tiempo negativo bloquea); un fallo transitorio del refresh muestra el mensaje "Tu sesión expiró" aunque la sesión siga abierta (pendiente); el backend invalida la sesión si un refresh rota el token y la respuesta se pierde (`RefreshTokenService`, preexistente, pendiente de decisión).
+- L5: T3-T4: `flutter test` 210 en verde en `feat/nequi-flujo-simple`, `flutter analyze` limpio, `flutter build apk --release` compila. Sin probar en dispositivo. La parte de `ScaffoldWithNav` (reofrecer tras el bloqueo) no tiene test de widget.
+- L6: Con la app cerrada del todo no hay aviso en tiempo real: el plugin solo entrega notificaciones con el motor de Flutter vivo. Se cubre al abrir la app (T4). Tiempo real con la app cerrada exigiría un listener nativo en Kotlin.
+

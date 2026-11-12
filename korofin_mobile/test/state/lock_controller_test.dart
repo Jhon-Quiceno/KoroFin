@@ -350,4 +350,16 @@ void main() {
 
     expect(container.read(lockControllerProvider).locked, isFalse);
   });
+
+  test('si el reloj del teléfono se atrasó mientras la app estaba fuera, pide huella',
+      () async {
+    final container =
+        _container(authState: AuthState.authenticated(_user()));
+    final notifier = container.read(lockControllerProvider.notifier);
+    await notifier.enable();
+
+    _backgroundAndBack(notifier, away: const Duration(hours: -1));
+
+    expect(container.read(lockControllerProvider).locked, isTrue);
+  });
 }
