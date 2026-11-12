@@ -172,12 +172,17 @@ class NequiCaptureController extends Notifier<PendingNequiMatch?>
 
   Future<void> _notifyMatch(PendingNequiMatch match) {
     final bool isIncome = match.type == MovementType.income;
-    final String amount = AppFormatters.currency(match.amount);
     final String? description = match.description;
+    // Monto 0 = Nequi no lo informó (envío propio): se completa en el formulario.
+    final String body = match.amount == 0
+        ? 'Nequi · Envío exitoso · falta el monto'
+        : description == null
+            ? 'Nequi · ${AppFormatters.currency(match.amount)}'
+            : 'Nequi · ${AppFormatters.currency(match.amount)} · $description';
     return _localNotifications.showActionableNotification(
       id: match.key.hashCode & 0x7fffffff,
       title: isIncome ? '¿Registrar este ingreso?' : '¿Registrar este gasto?',
-      body: description == null ? 'Nequi · $amount' : 'Nequi · $amount · $description',
+      body: body,
       payload: match.encode(),
     );
   }

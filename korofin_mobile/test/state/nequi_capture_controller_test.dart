@@ -295,4 +295,25 @@ void main() {
 
     expect(h.pending, isNull);
   });
+
+  test(
+      'un envío propio sin monto se ofrece como gasto y el aviso pide completar '
+      'el monto', () async {
+    final h = _Harness();
+    await h.start();
+    h.toBackground();
+
+    await h.emit(const NequiRawNotification(
+      id: 5,
+      packageName: 'com.nequi.MobileApp',
+      title: 'Tu plata llegó con éxito 💜',
+      content: 'Envío exitoso, la plata ya está en el Nequi destino.',
+    ));
+
+    expect(h.local.shown.single.title, '¿Registrar este gasto?');
+    expect(h.local.shown.single.body, 'Nequi · Envío exitoso · falta el monto');
+    h.local.onTap!(h.local.shown.single.payload);
+    expect(h.pending?.type, MovementType.expense);
+    expect(h.pending?.amount, 0);
+  });
 }

@@ -21,6 +21,7 @@ class NequiIncomeDetected extends NequiParseResult {
 class NequiExpenseDetected extends NequiParseResult {
   const NequiExpenseDetected({required this.amount, this.description});
 
+  /// `0` cuando la notificación no trae el monto (el envío propio).
   final double amount;
 
   /// Nombre/número de quien recibió la plata o del comercio/servicio pagado,
@@ -70,6 +71,13 @@ class NequiNotificationParser {
     caseSensitive: false,
   );
 
+  /// Aviso real de Nequi al enviar plata: "Envío exitoso, la plata ya está en
+  /// el Nequi destino…". No trae monto ni destinatario.
+  static final RegExp _expenseSentNoAmount = RegExp(
+    r'^Env[ií]o exitoso',
+    caseSensitive: false,
+  );
+
   /// Parsea el título+cuerpo de una notificación de Android y devuelve el
   /// resultado tipado correspondiente. Nunca lanza: un formato desconocido se
   /// devuelve como [NequiIgnored].
@@ -105,6 +113,11 @@ class NequiNotificationParser {
         amount: _parseAmount(paid.namedGroup('amount')),
         description: paid.namedGroup('target')?.trim(),
       );
+    }
+
+    if (_expenseSentNoAmount.hasMatch(normalizedBody)) {
+      // Monto 0 = desconocido: el usuario lo completa en el formulario.
+      return const NequiExpenseDetected(amount: 0);
     }
 
     return const NequiIgnored();
