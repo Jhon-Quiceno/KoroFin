@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 256" width="880" height="256" role="img" aria-labelledby="title">
+  <title id="title">KoroFin logo lockup</title>
+  <g id="symbol">
+  <rect x="30" y="72" width="36" height="148" fill="#000"/>
+  <polygon points="82,138 132.91,138 230.91,40 180,40" fill="#000"/>
+  <polygon points="82,154 132.91,154 198.91,220 148,220" fill="#000"/>
+  </g>
+  <text id="wordmark" x="300" y="170" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="120" font-weight="700" letter-spacing="-3" fill="#000">KoroFin</text>
+</svg>

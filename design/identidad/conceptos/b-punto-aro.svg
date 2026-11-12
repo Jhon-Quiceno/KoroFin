@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-labelledby="title">
+  <title id="title">KoroFin - Punto y aro</title>
+  <circle cx="66" cy="128" r="58" fill="#000"/>
+  <path fill="#000" fill-rule="evenodd" d="M132 128a58 58 0 1 0 116 0a58 58 0 1 0 -116 0ZM160 128a30 30 0 1 0 60 0a30 30 0 1 0 -60 0Z"/>
+</svg>
