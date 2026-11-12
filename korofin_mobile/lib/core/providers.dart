@@ -6,6 +6,7 @@ import 'network/connectivity_gateway.dart';
 import 'notifications/local_notifications_gateway.dart';
 import 'notifications/nequi_notification_gateway.dart';
 import 'storage/lock_store.dart';
+import 'storage/nequi_seen_store.dart';
 import 'storage/offline_queue_store.dart';
 import 'storage/session_store.dart';
 
@@ -57,6 +58,12 @@ final apiClientProvider = Provider<ApiClient>((ref) {
 /// Se sobreescribe en tests con un fake que no depende del plugin nativo.
 final nequiNotificationGatewayProvider = Provider<NequiNotificationGateway>(
   (ref) => AndroidNequiNotificationGateway(),
+);
+
+/// Notificaciones de Nequi ya ofrecidas, para no repetir el mismo movimiento.
+/// Se sobreescribe en tests con [InMemoryNequiSeenStore].
+final nequiSeenStoreProvider = Provider<NequiSeenStore>(
+  (ref) => SecureNequiSeenStore(),
 );
 
 /// Notificación local propia ("¿Registrar este movimiento?") usada para

@@ -57,7 +57,9 @@ class _TransactionFormSheet extends ConsumerStatefulWidget {
 class _TransactionFormSheetState extends ConsumerState<_TransactionFormSheet> {
   late MovementType _type = widget.initial?.type ?? widget.type;
   late final TextEditingController _amount = TextEditingController(
-    text: widget.initial != null
+    // Monto 0 = borrador sin monto (por ejemplo, un envío de Nequi que no lo
+    // informa): el campo arranca vacío para que el usuario lo escriba.
+    text: widget.initial != null && widget.initial!.amount != 0
         ? widget.initial!.amount.toStringAsFixed(0)
         : '',
   );

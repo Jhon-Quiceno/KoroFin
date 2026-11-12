@@ -8,11 +8,20 @@ import '../../models/movement.dart';
 /// sobrevivir a que la app esté cerrada entre la detección y el toque del
 /// usuario.
 class PendingNequiMatch {
-  const PendingNequiMatch({required this.type, required this.amount, this.description});
+  const PendingNequiMatch({
+    required this.type,
+    required this.amount,
+    this.description,
+    this.key,
+  });
 
   final MovementType type;
   final double amount;
   final String? description;
+
+  /// Identifica la notificación de Nequi que originó el match, para no
+  /// encolar dos veces el mismo movimiento. `null` en payloads antiguos.
+  final String? key;
 
   /// Borrador para pre-llenar `showTransactionForm`. El `id` es un placeholder
   /// (el movimiento todavía no existe) — el formulario no lo usa para nada
@@ -29,6 +38,7 @@ class PendingNequiMatch {
         'type': type.name,
         'amount': amount,
         'description': description,
+        'key': key,
       });
 
   static PendingNequiMatch? decode(String? payload) {
@@ -45,6 +55,7 @@ class PendingNequiMatch {
         type: type,
         amount: amount.toDouble(),
         description: data['description'] as String?,
+        key: data['key'] as String?,
       );
     } on FormatException {
       return null;
