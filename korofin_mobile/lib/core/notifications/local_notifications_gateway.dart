@@ -2,13 +2,19 @@ import 'dart:io';
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
+/// "Descartar" no abre la app: Android entrega esa acción a un isolate en
+/// segundo plano, y el plugin exige tener un callback registrado para eso. No
+/// hay nada que hacer: el propio sistema ya quita el aviso.
+@pragma('vm:entry-point')
+void _onBackgroundNotificationAction(NotificationResponse response) {}
+
 /// Notificación local propia de la app ("¿Registrar este movimiento?") y su
 /// manejo de permisos/toque. Es una interfaz para poder inyectar un fake en
 /// los tests: el plugin nativo no está disponible en `flutter test`.
 abstract interface class LocalNotificationsGateway {
   /// Inicializa el plugin y registra [onNotificationTap] para cuando el
-  /// usuario toca la notificación mientras la app sigue viva (primer o
-  /// segundo plano).
+  /// usuario toca la notificación o su botón "Registrar" mientras la app
+  /// sigue viva (primer o segundo plano).
   Future<void> initialize({required void Function(String? payload) onNotificationTap});
 
   /// Si la app se abrió justo porque el usuario tocó una notificación
@@ -16,6 +22,9 @@ abstract interface class LocalNotificationsGateway {
   /// normal, o la notificación ya fue consumida).
   Future<String?> consumeLaunchPayload();
 
+  /// Muestra el aviso con dos botones: "Registrar" (abre la app y entrega el
+  /// [payload], igual que tocar el aviso) y "Descartar" (lo quita sin abrir
+  /// la app).
   Future<void> showActionableNotification({
     required int id,
     required String title,
@@ -37,6 +46,8 @@ class FlutterLocalNotificationsGateway implements LocalNotificationsGateway {
   final FlutterLocalNotificationsPlugin _plugin;
 
   static const String _channelId = 'nequi_capture';
+  static const String _registerActionId = 'register';
+  static const String _dismissActionId = 'dismiss';
   static const String _channelName = 'Captura de pagos (Nequi)';
   static const String _channelDescription =
       'Avisa cuando se detecta un posible gasto o ingreso desde una notificación de Nequi, para confirmarlo.';
@@ -49,6 +60,7 @@ class FlutterLocalNotificationsGateway implements LocalNotificationsGateway {
         android: AndroidInitializationSettings('@mipmap/ic_launcher'),
       ),
       onDidReceiveNotificationResponse: (response) => onNotificationTap(response.payload),
+      onDidReceiveBackgroundNotificationResponse: _onBackgroundNotificationAction,
     );
   }
 
@@ -79,6 +91,14 @@ class FlutterLocalNotificationsGateway implements LocalNotificationsGateway {
           channelDescription: _channelDescription,
           importance: Importance.high,
           priority: Priority.high,
+          actions: <AndroidNotificationAction>[
+            AndroidNotificationAction(
+              _registerActionId,
+              'Registrar',
+              showsUserInterface: true,
+            ),
+            AndroidNotificationAction(_dismissActionId, 'Descartar'),
+          ],
         ),
       ),
       payload: payload,

@@ -54,6 +54,13 @@
                 <action android:name="android.service.notification.NotificationListenerService" />
             </intent-filter>
         </service>
+
+        <!-- Requerido por flutter_local_notifications para el boton "Descartar" del aviso de
+             captura de Nequi: es una accion que no abre la app, y Android la entrega a este
+             receiver. -->
+        <receiver
+            android:name="com.dexterous.flutterlocalnotifications.ActionBroadcastReceiver"
+            android:exported="false" />
     </application>
     <!-- Required to query activities that can process text, see:
          https://developer.android.com/training/package-visibility and

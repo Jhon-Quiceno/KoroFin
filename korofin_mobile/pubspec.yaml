@@ -55,7 +55,7 @@ dependencies:
 
   # Captura de notificaciones de pago (Nequi, Android-only) y notificacion
   # local propia para ofrecer el formulario pre-llenado.
-  notification_listener_service: ^0.3.3
+  notification_listener_service: ^0.3.5
   flutter_local_notifications: ^18.0.1
 
   # Seleccion de archivos de extractos bancarios (PDF/CSV/XLSX).
