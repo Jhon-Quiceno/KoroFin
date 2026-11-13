@@ -24,11 +24,12 @@ Test runner: `cd korofin_mobile && flutter test` / `flutter analyze`.
 - [x] T2 (S1): período de gracia de 2 min del bloqueo con huella al volver del background. — inline — Risk: item 2 — `fce2f99` + endurecimiento ante reloj atrasado
 - [x] T3 (S2, S4): aviso propio con acciones "Registrar" / "Descartar"; "Registrar" abre la app con el formulario pre-llenado. — inline — `ac3d8db` (rama `feat/nequi-flujo-simple`)
 - [x] T4 (S2, S4): al abrir la app, ofrecer las notificaciones de Nequi que sigan en la bandeja (cubre el caso de la app cerrada), sin repetir. — inline — `ac3d8db`
-- [ ] T5 (S3): reconocer el envío propio con el texto real. — bloqueado, falta muestra
+- [x] T5 (S3): reconocer el envío propio con el texto real (sin monto: se completa en el formulario). — inline — `7551a99`
 - [x] T6 (S7): skill `logo-design` instalada en `.claude/skills/logo-design` (solo local, excluida de git).
-- [ ] T7 (S5, S6): crítica de la identidad actual + tres conceptos de logo (`design/identidad/conceptos/conceptos.png`); esperando que el usuario elija dirección.
-- [ ] T8 (S5): kit del logo elegido + íconos de la app. — espera T7
-- [ ] T9 (S5): rediseño de login y registro con la identidad elegida. — espera T7
+- [x] T7 (S5, S6): crítica de la identidad actual + tres conceptos de logo (`design/identidad/conceptos/conceptos.png`); el usuario eligió C.
+- [x] T8 (S5): kit del logo C + íconos de Android. — inline — `f74843f` (rama `feat/identidad-visual`)
+- [x] T9 (S5): rediseño de login y registro (Claude Design + Flutter). — inline — `f74843f`
+- [ ] T10 (S6): auditoría de seguridad con `security-audit` (perfil quick, solo lectura). — delegada, en curso
 
 ## Log
 
@@ -46,4 +47,6 @@ Test runner: `cd korofin_mobile && flutter test` / `flutter analyze`.
 - L4: T1-T2 verificados por un verificador independiente (solo lectura del diff): PASS en ambos, sin bloqueantes. Avisos: el período de gracia usaba el reloj de pared (corregido: un tiempo negativo bloquea); un fallo transitorio del refresh muestra el mensaje "Tu sesión expiró" aunque la sesión siga abierta (pendiente); el backend invalida la sesión si un refresh rota el token y la respuesta se pierde (`RefreshTokenService`, preexistente, pendiente de decisión).
 - L5: T3-T4: `flutter test` 210 en verde en `feat/nequi-flujo-simple`, `flutter analyze` limpio, `flutter build apk --release` compila. Sin probar en dispositivo. La parte de `ScaffoldWithNav` (reofrecer tras el bloqueo) no tiene test de widget.
 - L6: Con la app cerrada del todo no hay aviso en tiempo real: el plugin solo entrega notificaciones con el motor de Flutter vivo. Se cubre al abrir la app (T4). Tiempo real con la app cerrada exigiría un listener nativo en Kotlin.
+- L7 (2026-11-12): Corrección del usuario verbatim: "esta era la de auditoria: https://github.com/cloudflare/security-audit-skill / haz la C / lo de nequi cuanod yo mando no me sale una muy buena, solo me sale así: [captura: título 'Tu plata llegó con éxito', cuerpo 'Envío exitoso, la plata ya está en el Nequi destino. Recuerda que no se puede cancelar. Avísale a tu amigo que ya le llegó.'] / termian todo, sube las ramas, haz pr a develop y despues de develop a main, para dejar todo listo". S6 pasa a ser una auditoría de seguridad con esa skill.
+- L8: PRs #24 y #25 mergeados a `develop` (221 tests en verde sobre el merge). Diseño de login/registro en Claude Design: https://claude.ai/artifact/4ft1ZAYND5VfX4Paf3XAEq. Las pantallas nuevas no se revisaron visualmente en dispositivo.
 

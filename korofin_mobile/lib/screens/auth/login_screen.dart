@@ -6,6 +6,7 @@ import '../../core/network/api_exception.dart';
 import '../../state/auth/auth_controller.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/brand/auth_brand_layout.dart';
 
 /// Pantalla 1 — Login: correo + contraseña contra `POST /api/users/login`.
 /// La navegación al home la resuelve el `redirect` del router cuando la sesión
@@ -55,38 +56,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final koro = context.koroColors;
-    return Scaffold(
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(AppSpacing.xxl),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const SizedBox(height: AppSpacing.xxl),
-                Container(
-                  width: 56,
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: koro.accent,
-                    borderRadius: BorderRadius.circular(AppRadii.lg),
-                  ),
-                  child: const Center(
-                    child: Text('K',
-                        style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 26,
-                            fontWeight: FontWeight.w700)),
-                  ),
-                ),
-                const SizedBox(height: AppSpacing.xl),
-                Text('Bienvenido de nuevo',
-                    style: Theme.of(context).textTheme.displayLarge),
-                const SizedBox(height: AppSpacing.xs),
-                Text('Ingresa a tu cuenta de KoroFin',
-                    style: Theme.of(context).textTheme.bodyLarge),
-                const SizedBox(height: AppSpacing.xxl),
+    final ThemeData theme = Theme.of(context);
+    return AuthBrandLayout(
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 56),
+            Text(
+              'Tu plata,\nen partes claras.',
+              style: theme.textTheme.displayLarge?.copyWith(
+                fontSize: 34,
+                height: 40 / 34,
+                letterSpacing: -0.8,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              'Ingresa para ver cómo va tu mes.',
+              style: theme.textTheme.bodyLarge
+                  ?.copyWith(color: koro.mutedForeground),
+            ),
+            const SizedBox(height: 40),
                 TextFormField(
                   controller: _email,
                   keyboardType: TextInputType.emailAddress,
@@ -131,7 +123,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           height: 20,
                           child: CircularProgressIndicator(strokeWidth: 2.5),
                         )
-                      : const Text('Continuar'),
+                      : const Text('Ingresar'),
                 ),
                 const SizedBox(height: AppSpacing.xxl),
                 Center(
@@ -142,7 +134,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           style: Theme.of(context).textTheme.bodyMedium),
                       GestureDetector(
                         onTap: () => context.push('/register'),
-                        child: Text('Regístrate',
+                        child: Text('Crea una',
                             style: TextStyle(
                                 color: koro.accent,
                                 fontWeight: FontWeight.w600)),
@@ -153,8 +145,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               ],
             ),
           ),
-        ),
-      ),
     );
   }
 }

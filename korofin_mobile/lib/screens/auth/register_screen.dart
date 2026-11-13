@@ -6,6 +6,7 @@ import '../../core/network/api_exception.dart';
 import '../../state/auth/auth_controller.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
+import '../../widgets/brand/auth_brand_layout.dart';
 
 /// Pantalla 2 — Registro contra `POST /api/users/register`. Al crear la cuenta
 /// el backend ya devuelve la sesión, así que se entra directo al home (lo
@@ -58,22 +59,34 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     final koro = context.koroColors;
-    return Scaffold(
-      appBar: AppBar(title: const Text('Crear cuenta')),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(AppSpacing.xxl),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Crea tu cuenta',
-                    style: Theme.of(context).textTheme.displayLarge),
-                const SizedBox(height: AppSpacing.xs),
-                Text('Empieza a controlar tus finanzas con KoroFin',
-                    style: Theme.of(context).textTheme.bodyLarge),
-                const SizedBox(height: AppSpacing.xxl),
+    final ThemeData theme = Theme.of(context);
+    return AuthBrandLayout(
+      leading: IconButton(
+        tooltip: 'Volver',
+        icon: const Icon(Icons.arrow_back),
+        onPressed: () => context.pop(),
+      ),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: 40),
+            Text(
+              'Crea tu cuenta',
+              style: theme.textTheme.displayLarge?.copyWith(
+                fontSize: 34,
+                height: 40 / 34,
+                letterSpacing: -0.8,
+              ),
+            ),
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              'Empieza a ver tu plata en partes claras.',
+              style: theme.textTheme.bodyLarge
+                  ?.copyWith(color: koro.mutedForeground),
+            ),
+            const SizedBox(height: 32),
                 TextFormField(
                   controller: _name,
                   textCapitalization: TextCapitalization.words,
@@ -172,7 +185,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                           style: Theme.of(context).textTheme.bodyMedium),
                       GestureDetector(
                         onTap: () => context.pop(),
-                        child: Text('Inicia sesión',
+                        child: Text('Ingresa',
                             style: TextStyle(
                                 color: koro.accent,
                                 fontWeight: FontWeight.w600)),
@@ -183,8 +196,6 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
               ],
             ),
           ),
-        ),
-      ),
     );
   }
 }

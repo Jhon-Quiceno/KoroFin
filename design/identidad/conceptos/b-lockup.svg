@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 256" width="480" height="256" role="img" aria-labelledby="title">
+  <title id="title">KoroFin wordmark</title>
+  <text x="20" y="170" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="120" font-weight="700" letter-spacing="-3" fill="#000">k</text>
+  <circle cx="124" cy="137" r="33" fill="#000"/>
+  <text x="164" y="170" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="120" font-weight="700" letter-spacing="-3" fill="#000">r</text>
+  <path fill="#000" fill-rule="evenodd" d="M212 137a33 33 0 1 0 66 0a33 33 0 1 0 -66 0ZM229 137a16 16 0 1 0 32 0a16 16 0 1 0 -32 0Z"/>
+  <text x="284" y="170" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="120" font-weight="700" letter-spacing="-3" fill="#000">fin</text>
+</svg>
