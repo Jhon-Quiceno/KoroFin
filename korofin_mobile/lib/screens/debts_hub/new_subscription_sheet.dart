@@ -36,7 +36,7 @@ class _NewSubscriptionSheetState extends State<_NewSubscriptionSheet> {
       TextEditingController(text: widget.initial?.name ?? '');
   late final TextEditingController _amount = TextEditingController(
       text: widget.initial != null
-          ? widget.initial!.amount.toStringAsFixed(0)
+          ? AppFormatters.amountInput(widget.initial!.amount)
           : '');
   late RecurringFrequency _frequency =
       widget.initial?.frequency ?? RecurringFrequency.monthly;
@@ -54,8 +54,7 @@ class _NewSubscriptionSheetState extends State<_NewSubscriptionSheet> {
 
   void _submit() {
     final String name = _name.text.trim();
-    final double amount = double.tryParse(
-            _amount.text.replaceAll('.', '').replaceAll(',', '')) ??
+    final double amount = AppFormatters.parseAmount(_amount.text) ??
         0;
     if (name.isEmpty || amount <= 0) {
       setState(() => _error = 'Revisá el nombre y el monto.');
@@ -89,7 +88,8 @@ class _NewSubscriptionSheetState extends State<_NewSubscriptionSheet> {
             const SizedBox(height: AppSpacing.md),
             TextField(
                 controller: _amount,
-                keyboardType: TextInputType.number,
+                keyboardType:
+              const TextInputType.numberWithOptions(decimal: true),
                 decoration: const InputDecoration(labelText: 'Monto')),
             const SizedBox(height: AppSpacing.md),
             SegmentedButton<RecurringFrequency>(

@@ -308,7 +308,8 @@ Future<({double amount, String? text})?> _amountDialog(
         children: [
           TextField(
             controller: amountController,
-            keyboardType: TextInputType.number,
+            keyboardType:
+              const TextInputType.numberWithOptions(decimal: true),
             autofocus: true,
             decoration: const InputDecoration(labelText: 'Monto'),
           ),
@@ -325,9 +326,7 @@ Future<({double amount, String? text})?> _amountDialog(
             child: const Text('Cancelar')),
         FilledButton(
           onPressed: () {
-            final double amount = double.tryParse(amountController.text
-                    .replaceAll('.', '')
-                    .replaceAll(',', '')) ??
+            final double amount = AppFormatters.parseAmount(amountController.text) ??
                 0;
             if (amount <= 0) return;
             Navigator.of(context).pop((

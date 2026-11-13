@@ -38,7 +38,7 @@ class _NewDebtSheetState extends State<_NewDebtSheet> {
       TextEditingController(text: widget.initial?.name ?? '');
   late final TextEditingController _total = TextEditingController(
     text: widget.initial != null
-        ? widget.initial!.totalAmount.toStringAsFixed(0)
+        ? AppFormatters.amountInput(widget.initial!.totalAmount)
         : '',
   );
   late final TextEditingController _interest = TextEditingController(
@@ -60,7 +60,7 @@ class _NewDebtSheetState extends State<_NewDebtSheet> {
   void _submit() {
     final String name = _name.text.trim();
     final double total =
-        double.tryParse(_total.text.replaceAll('.', '').replaceAll(',', '')) ?? 0;
+        AppFormatters.parseAmount(_total.text) ?? 0;
     if (name.isEmpty) {
       setState(() => _error = 'Ingresá un nombre.');
       return;
@@ -99,7 +99,8 @@ class _NewDebtSheetState extends State<_NewDebtSheet> {
             if (!_isEdit) ...[
               TextField(
                 controller: _total,
-                keyboardType: TextInputType.number,
+                keyboardType:
+              const TextInputType.numberWithOptions(decimal: true),
                 decoration: const InputDecoration(labelText: 'Monto total'),
               ),
               const SizedBox(height: AppSpacing.md),
