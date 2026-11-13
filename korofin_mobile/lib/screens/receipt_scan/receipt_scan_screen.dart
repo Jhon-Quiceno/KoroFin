@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../data/formatters.dart';
 import '../../core/network/api_exception.dart';
 import '../../data/category_visuals.dart';
 import '../../models/ai.dart';
@@ -66,7 +67,9 @@ class _ReceiptScanScreenState extends ConsumerState<ReceiptScanScreen> {
         return;
       }
       setState(() {
-        _amount.text = result.amount?.toStringAsFixed(0) ?? '';
+        _amount.text = result.amount == null
+            ? ''
+            : AppFormatters.amountInput(result.amount!);
         _description.text = result.description ?? '';
         _categoryId = result.categoryId;
         _categoryName = result.categoryName;
@@ -100,8 +103,7 @@ class _ReceiptScanScreenState extends ConsumerState<ReceiptScanScreen> {
   }
 
   Future<void> _save() async {
-    final double? amount = double.tryParse(
-        _amount.text.replaceAll('.', '').replaceAll(',', ''));
+    final double? amount = AppFormatters.parseAmount(_amount.text);
     if (amount == null || amount <= 0) {
       setState(() => _error = 'Ingresá un monto válido.');
       return;
@@ -185,7 +187,8 @@ class _ReceiptScanScreenState extends ConsumerState<ReceiptScanScreen> {
                   const SizedBox(height: AppSpacing.md),
                   TextField(
                     controller: _amount,
-                    keyboardType: TextInputType.number,
+                    keyboardType:
+              const TextInputType.numberWithOptions(decimal: true),
                     decoration: const InputDecoration(labelText: 'Monto'),
                   ),
                   const SizedBox(height: AppSpacing.md),

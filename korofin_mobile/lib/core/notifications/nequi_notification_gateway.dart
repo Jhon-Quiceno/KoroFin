@@ -40,7 +40,9 @@ abstract interface class NequiNotificationGateway {
   Future<bool> isPermissionGranted();
 
   /// Abre los ajustes del sistema para que el usuario active el acceso a
-  /// notificaciones; devuelve `true` una vez concedido.
+  /// notificaciones. Devuelve el estado del permiso en ese momento, que
+  /// normalmente todavía es `false`: el usuario lo concede después, en
+  /// Ajustes.
   Future<bool> requestPermission();
 
   /// Abre "Información de la app" del sistema. Ahí se habilita la opción
@@ -90,10 +92,17 @@ class AndroidNequiNotificationGateway implements NequiNotificationGateway {
     return NotificationListenerService.isPermissionGranted();
   }
 
+  // No se usa `NotificationListenerService.requestPermission()`: el plugin
+  // responde dos veces a la misma llamada (una al abrir Ajustes y otra en
+  // `onActivityResult`), y la segunda respuesta lanza "Reply already
+  // submitted" y cierra la app al volver de Ajustes. Se abre la pantalla con
+  // el canal propio, sin esperar un resultado; el estado se vuelve a leer
+  // cuando la app se reanuda.
   @override
-  Future<bool> requestPermission() {
-    if (!Platform.isAndroid) return Future<bool>.value(false);
-    return NotificationListenerService.requestPermission();
+  Future<bool> requestPermission() async {
+    if (!Platform.isAndroid) return false;
+    await _appSettings.invokeMethod<bool>('openNotificationListenerSettings');
+    return NotificationListenerService.isPermissionGranted();
   }
 
   static const MethodChannel _appSettings = MethodChannel('korofin/app_settings');

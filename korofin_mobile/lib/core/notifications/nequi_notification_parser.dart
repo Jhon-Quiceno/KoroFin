@@ -45,7 +45,8 @@ class NequiNotificationParser {
   /// "1000" a secas (formato real observado: "X te envió 1000, ¡lo mejor!").
   /// Los miles van separados por punto, así que un punto o coma que no sea
   /// separador de miles queda fuera del monto.
-  static const String _amount = r'\$?\s*(?<amount>\d{1,3}(?:\.\d{3})+|\d+)';
+  static const String _amount =
+      r'\$?\s*(?<amount>(?:\d{1,3}(?:\.\d{3})+|\d+)(?:,\d{1,2})?)';
 
   /// Fin del nombre del destinatario/comercio: el primer signo de puntuación
   /// o el final del texto.
@@ -123,10 +124,12 @@ class NequiNotificationParser {
     return const NequiIgnored();
   }
 
-  /// Los montos de Nequi usan el punto como separador de miles (ej. "50.000")
-  /// sin decimales; se descarta cualquier caracter no numérico.
+  /// Los montos de Nequi usan el punto como separador de miles y, cuando hay
+  /// centavos, la coma como decimal (ej. "50.000", "172.875,24").
   static double _parseAmount(String? raw) {
-    final String digitsOnly = (raw ?? '').replaceAll(RegExp(r'[^\d]'), '');
-    return double.tryParse(digitsOnly) ?? 0;
+    final List<String> parts = (raw ?? '').split(',');
+    final String whole = parts.first.replaceAll(RegExp(r'[^\d]'), '');
+    final String cents = parts.length > 1 ? parts[1] : '';
+    return double.tryParse(cents.isEmpty ? whole : '$whole.$cents') ?? 0;
   }
 }

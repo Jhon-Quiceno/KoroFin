@@ -60,7 +60,7 @@ class _TransactionFormSheetState extends ConsumerState<_TransactionFormSheet> {
     // Monto 0 = borrador sin monto (por ejemplo, un envío de Nequi que no lo
     // informa): el campo arranca vacío para que el usuario lo escriba.
     text: widget.initial != null && widget.initial!.amount != 0
-        ? widget.initial!.amount.toStringAsFixed(0)
+        ? AppFormatters.amountInput(widget.initial!.amount)
         : '',
   );
   late final TextEditingController _description =
@@ -126,9 +126,7 @@ class _TransactionFormSheetState extends ConsumerState<_TransactionFormSheet> {
   }
 
   double? get _parsedAmount {
-    final String raw =
-        _amount.text.replaceAll('.', '').replaceAll(',', '').trim();
-    final double? value = double.tryParse(raw);
+    final double? value = AppFormatters.parseAmount(_amount.text);
     return (value == null || value <= 0) ? null : value;
   }
 
@@ -222,7 +220,8 @@ class _TransactionFormSheetState extends ConsumerState<_TransactionFormSheet> {
               Center(
                 child: TextField(
                   controller: _amount,
-                  keyboardType: TextInputType.number,
+                  keyboardType:
+              const TextInputType.numberWithOptions(decimal: true),
                   textAlign: TextAlign.center,
                   style: AppTextStyles.numericLarge(accent),
                   decoration: const InputDecoration(

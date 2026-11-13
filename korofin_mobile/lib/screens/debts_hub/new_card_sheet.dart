@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../data/formatters.dart';
 import '../../models/credit_card.dart';
 import '../../theme/app_spacing.dart';
 
@@ -40,7 +41,7 @@ class _NewCardSheetState extends State<_NewCardSheet> {
       TextEditingController(text: widget.initial?.bank ?? '');
   late final TextEditingController _limit = TextEditingController(
       text: widget.initial != null
-          ? widget.initial!.creditLimit.toStringAsFixed(0)
+          ? AppFormatters.amountInput(widget.initial!.creditLimit)
           : '');
   late final TextEditingController _rate = TextEditingController(
       text: widget.initial?.monthlyRate.toStringAsFixed(2) ?? '');
@@ -62,8 +63,7 @@ class _NewCardSheetState extends State<_NewCardSheet> {
 
   void _submit() {
     final String name = _name.text.trim();
-    final double limit = double.tryParse(
-            _limit.text.replaceAll('.', '').replaceAll(',', '')) ??
+    final double limit = AppFormatters.parseAmount(_limit.text) ??
         0;
     final double rate = double.tryParse(_rate.text.replaceAll(',', '.')) ?? -1;
     if (name.isEmpty || rate < 0 || (!_isEdit && limit <= 0)) {
@@ -124,7 +124,8 @@ class _NewCardSheetState extends State<_NewCardSheet> {
                 const SizedBox(height: AppSpacing.md),
                 TextField(
                     controller: _limit,
-                    keyboardType: TextInputType.number,
+                    keyboardType:
+              const TextInputType.numberWithOptions(decimal: true),
                     decoration: const InputDecoration(labelText: 'Cupo total')),
                 const SizedBox(height: AppSpacing.md),
               ],
