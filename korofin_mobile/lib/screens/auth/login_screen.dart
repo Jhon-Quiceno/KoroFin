@@ -7,6 +7,7 @@ import '../../state/auth/auth_controller.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/brand/auth_brand_layout.dart';
+import '../../widgets/brand/auth_form_fields.dart';
 
 /// Pantalla 1 — Login: correo + contraseña contra `POST /api/users/login`.
 /// La navegación al home la resuelve el `redirect` del router cuando la sesión
@@ -23,7 +24,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final TextEditingController _email = TextEditingController();
   final TextEditingController _password = TextEditingController();
 
-  bool _obscure = true;
   bool _submitting = false;
   String? _error;
 
@@ -42,10 +42,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       _error = null;
     });
     try {
-      await ref.read(authControllerProvider.notifier).login(
-            email: _email.text,
-            password: _password.text,
-          );
+      await ref
+          .read(authControllerProvider.notifier)
+          .login(email: _email.text, password: _password.text);
     } on ApiException catch (e) {
       if (mounted) setState(() => _error = e.message);
     } finally {
@@ -75,83 +74,56 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             const SizedBox(height: AppSpacing.sm),
             Text(
               'Ingresa para ver cómo va tu mes.',
-              style: theme.textTheme.bodyLarge
-                  ?.copyWith(color: koro.mutedForeground),
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: koro.mutedForeground,
+              ),
             ),
             const SizedBox(height: 40),
-                TextFormField(
-                  controller: _email,
-                  keyboardType: TextInputType.emailAddress,
-                  autofillHints: const [AutofillHints.email],
-                  decoration: const InputDecoration(
-                    labelText: 'Correo electrónico',
-                    hintText: 'tu@correo.com',
-                  ),
-                  validator: _validateEmail,
-                ),
-                const SizedBox(height: AppSpacing.md),
-                TextFormField(
-                  controller: _password,
-                  obscureText: _obscure,
-                  autofillHints: const [AutofillHints.password],
-                  decoration: InputDecoration(
-                    labelText: 'Contraseña',
-                    suffixIcon: IconButton(
-                      icon: Icon(_obscure
-                          ? Icons.visibility_outlined
-                          : Icons.visibility_off_outlined),
-                      onPressed: () => setState(() => _obscure = !_obscure),
-                    ),
-                  ),
-                  validator: (v) => (v == null || v.isEmpty)
-                      ? 'Ingresá tu contraseña'
-                      : null,
-                  onFieldSubmitted: (_) => _submit(),
-                ),
-                if (_error != null) ...[
-                  const SizedBox(height: AppSpacing.md),
-                  Text(_error!,
-                      style: TextStyle(
-                          color: Theme.of(context).colorScheme.error)),
-                ],
-                const SizedBox(height: AppSpacing.lg),
-                ElevatedButton(
-                  onPressed: _submitting ? null : _submit,
-                  child: _submitting
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2.5),
-                        )
-                      : const Text('Ingresar'),
-                ),
-                const SizedBox(height: AppSpacing.xxl),
-                Center(
-                  child: Wrap(
-                    alignment: WrapAlignment.center,
-                    children: [
-                      Text('¿No tienes cuenta? ',
-                          style: Theme.of(context).textTheme.bodyMedium),
-                      GestureDetector(
-                        onTap: () => context.push('/register'),
-                        child: Text('Crea una',
-                            style: TextStyle(
-                                color: koro.accent,
-                                fontWeight: FontWeight.w600)),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+            AuthTextField(
+              label: 'Correo electrónico',
+              hintText: 'tu@correo.com',
+              controller: _email,
+              keyboardType: TextInputType.emailAddress,
+              autofillHints: const [AutofillHints.email],
+              validator: _validateEmail,
             ),
-          ),
+            const SizedBox(height: AppSpacing.lg),
+            AuthTextField(
+              label: 'Contraseña',
+              hintText: 'Tu contraseña',
+              controller: _password,
+              isPassword: true,
+              autofillHints: const [AutofillHints.password],
+              validator: (v) =>
+                  (v == null || v.isEmpty) ? 'Ingresa tu contraseña' : null,
+              onFieldSubmitted: (_) => _submit(),
+            ),
+            if (_error != null) ...[
+              const SizedBox(height: AppSpacing.md),
+              Text(_error!, style: TextStyle(color: theme.colorScheme.error)),
+            ],
+            const SizedBox(height: AppSpacing.xl),
+            AuthPrimaryButton(
+              label: 'Ingresar',
+              loading: _submitting,
+              onPressed: _submit,
+            ),
+            const SizedBox(height: AppSpacing.xxl),
+            AuthSwitchLink(
+              question: '¿No tienes cuenta?',
+              action: 'Crea una',
+              onTap: () => context.push('/register'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
 
 String? _validateEmail(String? value) {
   final String v = value?.trim() ?? '';
-  if (v.isEmpty) return 'Ingresá tu correo';
+  if (v.isEmpty) return 'Ingresa tu correo';
   if (!v.contains('@') || !v.contains('.')) return 'Correo inválido';
   return null;
 }
