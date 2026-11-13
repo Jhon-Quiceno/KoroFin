@@ -28,6 +28,15 @@ class MainActivity : FlutterFragmentActivity() {
                         startActivity(intent)
                         result.success(true)
                     }
+                    // Pantalla "Acceso a notificaciones". Se abre con startActivity, sin
+                    // esperar resultado: asi no hay una segunda respuesta al canal.
+                    "openNotificationListenerSettings" -> {
+                        startActivity(
+                            Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        )
+                        result.success(true)
+                    }
                     else -> result.notImplemented()
                 }
             }
