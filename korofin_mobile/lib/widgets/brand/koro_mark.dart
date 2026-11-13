@@ -36,7 +36,8 @@ class KoroMark extends StatelessWidget {
       size: Size.square(size),
       painter: _KoroMarkPainter(
         color: color ?? theme.colorScheme.onSurface,
-        accentColor: accentColor ??
+        accentColor:
+            accentColor ??
             (isDark ? AppColors.brandMint : AppColors.brandEmerald),
       ),
     );

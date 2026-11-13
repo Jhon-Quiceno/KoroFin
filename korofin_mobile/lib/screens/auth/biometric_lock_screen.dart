@@ -71,17 +71,21 @@ class _BiometricLockScreenState extends ConsumerState<BiometricLockScreen> {
                 width: 96,
                 height: 96,
                 decoration: BoxDecoration(
-                    color: koro.accent.withValues(alpha: 0.15),
-                    shape: BoxShape.circle),
+                  color: koro.accent.withValues(alpha: 0.15),
+                  shape: BoxShape.circle,
+                ),
                 child: Icon(Icons.fingerprint, size: 44, color: koro.accent),
               ),
               const SizedBox(height: AppSpacing.xxl),
-              const Text('Toca para desbloquear KoroFin',
-                  style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700),
-                  textAlign: TextAlign.center),
+              const Text(
+                'Toca para desbloquear KoroFin',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 20,
+                  fontWeight: FontWeight.w700,
+                ),
+                textAlign: TextAlign.center,
+              ),
               const SizedBox(height: AppSpacing.sm),
               const Text(
                 'Usa Face ID o tu huella para continuar',
@@ -97,8 +101,10 @@ class _BiometricLockScreenState extends ConsumerState<BiometricLockScreen> {
               const Spacer(),
               TextButton(
                 onPressed: _loggingOut ? null : _logout,
-                child: const Text('Cerrar sesión',
-                    style: TextStyle(color: Color(0xFF94A3B8))),
+                child: const Text(
+                  'Cerrar sesión',
+                  style: TextStyle(color: Color(0xFF94A3B8)),
+                ),
               ),
             ],
           ),

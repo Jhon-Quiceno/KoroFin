@@ -7,6 +7,7 @@ import '../../state/auth/auth_controller.dart';
 import '../../theme/app_spacing.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/brand/auth_brand_layout.dart';
+import '../../widgets/brand/auth_form_fields.dart';
 
 /// Pantalla 2 — Registro contra `POST /api/users/register`. Al crear la cuenta
 /// el backend ya devuelve la sesión, así que se entra directo al home (lo
@@ -44,7 +45,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       _error = null;
     });
     try {
-      await ref.read(authControllerProvider.notifier).register(
+      await ref
+          .read(authControllerProvider.notifier)
+          .register(
             name: _name.text,
             email: _email.text,
             password: _password.text,
@@ -83,119 +86,98 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             const SizedBox(height: AppSpacing.sm),
             Text(
               'Empieza a ver tu plata en partes claras.',
-              style: theme.textTheme.bodyLarge
-                  ?.copyWith(color: koro.mutedForeground),
+              style: theme.textTheme.bodyLarge?.copyWith(
+                color: koro.mutedForeground,
+              ),
             ),
             const SizedBox(height: 32),
-                TextFormField(
-                  controller: _name,
-                  textCapitalization: TextCapitalization.words,
-                  decoration: const InputDecoration(
-                    labelText: 'Nombre completo',
-                    hintText: 'Valentina Ramírez',
-                  ),
-                  validator: (v) => (v == null || v.trim().isEmpty)
-                      ? 'Ingresá tu nombre'
-                      : null,
+            AuthTextField(
+              label: 'Nombre',
+              hintText: 'Como quieres que te llamemos',
+              controller: _name,
+              textCapitalization: TextCapitalization.words,
+              validator: (v) =>
+                  (v == null || v.trim().isEmpty) ? 'Ingresa tu nombre' : null,
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            AuthTextField(
+              label: 'Correo electrónico',
+              hintText: 'tu@correo.com',
+              controller: _email,
+              keyboardType: TextInputType.emailAddress,
+              autofillHints: const [AutofillHints.email],
+              validator: (v) {
+                final String value = v?.trim() ?? '';
+                if (value.isEmpty) return 'Ingresa tu correo';
+                if (!value.contains('@') || !value.contains('.')) {
+                  return 'Correo inválido';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: AppSpacing.lg),
+            AuthTextField(
+              label: 'Contraseña',
+              hintText: 'Mínimo 8 caracteres',
+              controller: _password,
+              isPassword: true,
+              autofillHints: const [AutofillHints.newPassword],
+              validator: (v) =>
+                  (v == null || v.length < 8) ? 'Mínimo 8 caracteres' : null,
+            ),
+            const SizedBox(height: AppSpacing.md),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Checkbox(
+                  value: _acceptedTerms,
+                  onChanged: (v) => setState(() => _acceptedTerms = v ?? false),
                 ),
-                const SizedBox(height: AppSpacing.md),
-                TextFormField(
-                  controller: _email,
-                  keyboardType: TextInputType.emailAddress,
-                  autofillHints: const [AutofillHints.email],
-                  decoration: const InputDecoration(
-                    labelText: 'Correo electrónico',
-                    hintText: 'tu@correo.com',
-                  ),
-                  validator: (v) {
-                    final String value = v?.trim() ?? '';
-                    if (value.isEmpty) return 'Ingresá tu correo';
-                    if (!value.contains('@') || !value.contains('.')) {
-                      return 'Correo inválido';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: AppSpacing.md),
-                TextFormField(
-                  controller: _password,
-                  obscureText: true,
-                  autofillHints: const [AutofillHints.newPassword],
-                  decoration: const InputDecoration(labelText: 'Contraseña'),
-                  validator: (v) => (v == null || v.length < 8)
-                      ? 'Mínimo 8 caracteres'
-                      : null,
-                ),
-                const SizedBox(height: AppSpacing.lg),
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Checkbox(
-                      value: _acceptedTerms,
-                      onChanged: (v) =>
-                          setState(() => _acceptedTerms = v ?? false),
-                    ),
-                    Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.only(top: 12),
-                        child: Text.rich(
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: Text.rich(
+                      TextSpan(
+                        style: Theme.of(context).textTheme.bodyMedium,
+                        children: [
+                          const TextSpan(text: 'Acepto los '),
                           TextSpan(
-                            style: Theme.of(context).textTheme.bodyMedium,
-                            children: [
-                              const TextSpan(text: 'Acepto los '),
-                              TextSpan(
-                                text: 'términos y condiciones',
-                                style: TextStyle(
-                                    color: koro.accent,
-                                    fontWeight: FontWeight.w600),
-                              ),
-                              const TextSpan(
-                                  text:
-                                      ' y la política de privacidad.'),
-                            ],
+                            text: 'términos y condiciones',
+                            style: TextStyle(
+                              color: koro.accent,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
-                        ),
+                          const TextSpan(text: ' y la política de privacidad.'),
+                        ],
                       ),
                     ),
-                  ],
-                ),
-                if (_error != null) ...[
-                  const SizedBox(height: AppSpacing.md),
-                  Text(_error!,
-                      style: TextStyle(
-                          color: Theme.of(context).colorScheme.error)),
-                ],
-                const SizedBox(height: AppSpacing.lg),
-                ElevatedButton(
-                  onPressed: (_acceptedTerms && !_submitting) ? _submit : null,
-                  child: _submitting
-                      ? const SizedBox(
-                          width: 20,
-                          height: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2.5),
-                        )
-                      : const Text('Crear cuenta'),
-                ),
-                const SizedBox(height: AppSpacing.xl),
-                Center(
-                  child: Wrap(
-                    alignment: WrapAlignment.center,
-                    children: [
-                      Text('¿Ya tienes cuenta? ',
-                          style: Theme.of(context).textTheme.bodyMedium),
-                      GestureDetector(
-                        onTap: () => context.pop(),
-                        child: Text('Ingresa',
-                            style: TextStyle(
-                                color: koro.accent,
-                                fontWeight: FontWeight.w600)),
-                      ),
-                    ],
                   ),
                 ),
               ],
             ),
-          ),
+            if (_error != null) ...[
+              const SizedBox(height: AppSpacing.md),
+              Text(
+                _error!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ],
+            const SizedBox(height: AppSpacing.lg),
+            AuthPrimaryButton(
+              label: 'Crear cuenta',
+              loading: _submitting,
+              onPressed: _acceptedTerms ? _submit : null,
+            ),
+            const SizedBox(height: AppSpacing.xl),
+            AuthSwitchLink(
+              question: '¿Ya tienes cuenta?',
+              action: 'Ingresa',
+              onTap: () => context.pop(),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
