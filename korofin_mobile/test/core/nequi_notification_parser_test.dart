@@ -42,6 +42,15 @@ void main() {
         expect((result as NequiIncomeDetected).amount, 25000);
       });
 
+      test('un ingreso con centavos conserva los decimales', () {
+        final NequiParseResult result = NequiNotificationParser.parse(
+          title: 'Envío',
+          body: 'ANUAR MARRIAGA te envió 172.875,24, ¡lo mejor!',
+        );
+        expect(result, isA<NequiIncomeDetected>());
+        expect((result as NequiIncomeDetected).amount, 172875.24);
+      });
+
       test('mensaje de Transfiya detecta ingreso con el monto', () {
         final NequiParseResult result = NequiNotificationParser.parse(
           title: '¡Te enviaron plata!',

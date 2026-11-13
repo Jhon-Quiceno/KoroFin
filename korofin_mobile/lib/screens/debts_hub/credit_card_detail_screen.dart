@@ -287,7 +287,8 @@ class _PurchaseDialogState extends State<_PurchaseDialog> {
         children: [
           TextField(
             controller: _amount,
-            keyboardType: TextInputType.number,
+            keyboardType:
+              const TextInputType.numberWithOptions(decimal: true),
             autofocus: true,
             decoration: const InputDecoration(labelText: 'Monto'),
           ),
@@ -323,9 +324,7 @@ class _PurchaseDialogState extends State<_PurchaseDialog> {
             child: const Text('Cancelar')),
         FilledButton(
           onPressed: () {
-            final double amount = double.tryParse(_amount.text
-                    .replaceAll('.', '')
-                    .replaceAll(',', '')) ??
+            final double amount = AppFormatters.parseAmount(_amount.text) ??
                 0;
             if (amount <= 0) return;
             Navigator.of(context).pop(_PurchaseInput(
@@ -349,7 +348,8 @@ Future<double?> _amountDialog(BuildContext context, String title) {
       title: Text(title),
       content: TextField(
         controller: controller,
-        keyboardType: TextInputType.number,
+        keyboardType:
+              const TextInputType.numberWithOptions(decimal: true),
         autofocus: true,
         decoration: const InputDecoration(labelText: 'Monto'),
       ),
@@ -359,9 +359,7 @@ Future<double?> _amountDialog(BuildContext context, String title) {
             child: const Text('Cancelar')),
         FilledButton(
           onPressed: () {
-            final double amount = double.tryParse(controller.text
-                    .replaceAll('.', '')
-                    .replaceAll(',', '')) ??
+            final double amount = AppFormatters.parseAmount(controller.text) ??
                 0;
             if (amount > 0) Navigator.of(context).pop(amount);
           },
