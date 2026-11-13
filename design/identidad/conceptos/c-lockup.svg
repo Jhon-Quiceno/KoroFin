@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 880 256" width="880" height="256" role="img" aria-labelledby="title">
+  <title id="title">KoroFin logo lockup</title>
+  <g id="symbol">
+  <path fill="#000" d="M83 25.44A112 112 0 0 0 83 230.56ZM101 19.3A112 112 0 0 1 184.8 31.47L101 115.27ZM101 236.7A112 112 0 0 0 184.8 224.53L101 140.73ZM113.73 128L199.74 41.99A112 112 0 0 1 199.74 214.01Z"/>
+  </g>
+  <text id="wordmark" x="300" y="170" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="120" font-weight="700" letter-spacing="-3" fill="#000">KoroFin</text>
+</svg>

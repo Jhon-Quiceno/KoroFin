@@ -55,11 +55,20 @@ class _FakeBiometricAuthenticator implements BiometricAuthenticator {
   }
 }
 
-/// Simula que la app pasó a background (pantalla apagada, otra app) y volvió.
-void _backgroundAndBack(LockController notifier) {
+/// Reloj controlable: el período de gracia del bloqueo depende de cuánto
+/// tiempo estuvo la app en background.
+DateTime _now = DateTime(2026, 1, 1, 12);
+
+/// Simula que la app pasó a background (pantalla apagada, otra app) durante
+/// [away] y volvió. Por defecto, bastante más que el período de gracia.
+void _backgroundAndBack(
+  LockController notifier, {
+  Duration away = const Duration(minutes: 30),
+}) {
   notifier.didChangeAppLifecycleState(AppLifecycleState.inactive);
   notifier.didChangeAppLifecycleState(AppLifecycleState.hidden);
   notifier.didChangeAppLifecycleState(AppLifecycleState.paused);
+  _now = _now.add(away);
   notifier.didChangeAppLifecycleState(AppLifecycleState.resumed);
 }
 
@@ -72,6 +81,7 @@ ProviderContainer _container({
     overrides: <Override>[
       authControllerProvider.overrideWith(() => _FixedAuthController(authState)),
       lockStoreProvider.overrideWithValue(lockStore ?? InMemoryLockStore()),
+      lockClockProvider.overrideWithValue(() => _now),
       biometricAuthenticatorProvider
           .overrideWithValue(biometrics ?? _FakeBiometricAuthenticator()),
     ],
@@ -296,5 +306,60 @@ void main() {
     await Future<void>.delayed(Duration.zero);
 
     expect(container.read(lockControllerProvider).locked, isFalse);
+  });
+
+  test('volver del background dentro del período de gracia no pide huella',
+      () async {
+    final container =
+        _container(authState: AuthState.authenticated(_user()));
+    final notifier = container.read(lockControllerProvider.notifier);
+    await notifier.enable();
+
+    _backgroundAndBack(
+      notifier,
+      away: LockController.backgroundGracePeriod - const Duration(seconds: 1),
+    );
+
+    expect(container.read(lockControllerProvider).locked, isFalse);
+  });
+
+  test('volver del background justo al cumplirse el período de gracia pide huella',
+      () async {
+    final container =
+        _container(authState: AuthState.authenticated(_user()));
+    final notifier = container.read(lockControllerProvider.notifier);
+    await notifier.enable();
+
+    _backgroundAndBack(notifier, away: LockController.backgroundGracePeriod);
+
+    expect(container.read(lockControllerProvider).locked, isTrue);
+  });
+
+  test(
+      'varias salidas cortas seguidas no se acumulan: cada una cuenta desde que '
+      'la app salió', () async {
+    final container =
+        _container(authState: AuthState.authenticated(_user()));
+    final notifier = container.read(lockControllerProvider.notifier);
+    await notifier.enable();
+    const Duration short = Duration(seconds: 50);
+
+    _backgroundAndBack(notifier, away: short);
+    _backgroundAndBack(notifier, away: short);
+    _backgroundAndBack(notifier, away: short);
+
+    expect(container.read(lockControllerProvider).locked, isFalse);
+  });
+
+  test('si el reloj del teléfono se atrasó mientras la app estaba fuera, pide huella',
+      () async {
+    final container =
+        _container(authState: AuthState.authenticated(_user()));
+    final notifier = container.read(lockControllerProvider.notifier);
+    await notifier.enable();
+
+    _backgroundAndBack(notifier, away: const Duration(hours: -1));
+
+    expect(container.read(lockControllerProvider).locked, isTrue);
   });
 }

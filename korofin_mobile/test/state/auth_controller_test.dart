@@ -34,9 +34,12 @@ AuthSession _session({String access = 'A1', String refresh = 'R2'}) =>
     );
 
 class _FakeAuthRepository implements AuthRepository {
-  _FakeAuthRepository({this.failRefresh = false});
+  _FakeAuthRepository({this.failRefresh = false, this.refreshError});
 
   bool failRefresh;
+
+  /// Si no es `null`, el refresh falla con este error (por ejemplo, de red).
+  ApiException? refreshError;
   int refreshCalls = 0;
   int logoutCalls = 0;
   String? lastRefreshTokenSeen;
@@ -60,6 +63,7 @@ class _FakeAuthRepository implements AuthRepository {
   Future<AuthSession> refresh(String refreshToken) async {
     refreshCalls++;
     lastRefreshTokenSeen = refreshToken;
+    if (refreshError != null) throw refreshError!;
     if (failRefresh) {
       throw const ApiException(message: 'refresh token inválido', statusCode: 401);
     }
@@ -156,6 +160,73 @@ void main() {
         container.read(authControllerProvider).status, AuthStatus.unauthenticated);
     expect(container.read(accessTokenProvider), isNull);
     expect(await store.readRefreshToken(), isNull);
+  });
+
+  test(
+      'si el refresh del bootstrap falla por la red, conserva el refresh token '
+      'para el próximo intento', () async {
+    final store = InMemorySessionStore()..saveRefreshToken('R1');
+    final container = _container(
+      store: store,
+      repo: _FakeAuthRepository(
+        refreshError:
+            const ApiException(message: 'sin conexión', isNetworkError: true),
+      ),
+    );
+
+    await container.read(authControllerProvider.notifier).ready;
+
+    expect(
+        container.read(authControllerProvider).status, AuthStatus.unauthenticated);
+    expect(await store.readRefreshToken(), 'R1');
+  });
+
+  test('si el refresh del bootstrap falla con un 5xx, conserva el refresh token',
+      () async {
+    final store = InMemorySessionStore()..saveRefreshToken('R1');
+    final container = _container(
+      store: store,
+      repo: _FakeAuthRepository(
+        refreshError:
+            const ApiException(message: 'backend arrancando', statusCode: 503),
+      ),
+    );
+
+    await container.read(authControllerProvider.notifier).ready;
+
+    expect(await store.readRefreshToken(), 'R1');
+  });
+
+  test(
+      'con la sesión abierta, un refresh que falla por la red no cierra la '
+      'sesión ni borra el refresh token', () async {
+    final store = InMemorySessionStore()..saveRefreshToken('R1');
+    final repo = _FakeAuthRepository();
+    final container = _container(store: store, repo: repo);
+    await container.read(authControllerProvider.notifier).ready;
+    repo.refreshError =
+        const ApiException(message: 'timeout', isNetworkError: true);
+
+    await expectLater(
+      container.read(apiClientProvider).onRefresh!(),
+      throwsA(isA<ApiException>()),
+    );
+
+    expect(
+        container.read(authControllerProvider).status, AuthStatus.authenticated);
+    expect(await store.readRefreshToken(), 'ROTATED_R');
+  });
+
+  test(
+      'con la sesión abierta, un refresh rechazado por el backend devuelve null '
+      'para que la sesión se cierre', () async {
+    final store = InMemorySessionStore()..saveRefreshToken('R1');
+    final repo = _FakeAuthRepository();
+    final container = _container(store: store, repo: repo);
+    await container.read(authControllerProvider.notifier).ready;
+    repo.failRefresh = true;
+
+    expect(await container.read(apiClientProvider).onRefresh!(), isNull);
   });
 
   test('login autentica y persiste el access + refresh token', () async {

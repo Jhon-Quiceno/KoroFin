@@ -12,7 +12,9 @@ import 'dio_error_mapper.dart';
 typedef TokenReader = String? Function();
 
 /// Intenta renovar la sesión y devuelve el nuevo access token, o `null` si el
-/// refresh falló y la sesión debe darse por terminada.
+/// backend rechazó el refresh y la sesión debe darse por terminada. Ante un
+/// fallo transitorio (red, timeout, 5xx) lanza [ApiException]: la sesión
+/// sigue abierta.
 typedef TokenRefresher = Future<String?> Function();
 
 /// Se invoca cuando el refresh falla de forma definitiva: la capa de sesión
@@ -342,7 +344,16 @@ class ApiClient {
       return;
     }
 
-    final String? newToken = await _refreshOnce();
+    final String? newToken;
+    try {
+      newToken = await _refreshOnce();
+    } on ApiException {
+      // El refresh falló por algo transitorio (red, timeout, 5xx): la sesión
+      // sigue siendo válida, así que no se cierra. Se propaga el error
+      // original y la próxima request volverá a intentar el refresh.
+      handler.next(error);
+      return;
+    }
     if (newToken == null || newToken.isEmpty) {
       onSessionExpired?.call();
       handler.next(error);

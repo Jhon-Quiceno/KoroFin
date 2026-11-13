@@ -119,6 +119,28 @@ void main() {
     expect(expired, isTrue);
   });
 
+  test(
+      'si el refresh falla por un error transitorio, NO se llama a '
+      'onSessionExpired y se propaga el error original', () async {
+    final adapter = CapturingAdapter(
+      status: 401,
+      body: <String, dynamic>{'message': 'Token vencido'},
+    );
+    final client = _clientWith(adapter, token: 'viejo');
+
+    var expired = false;
+    client.onRefresh = () async =>
+        throw const ApiException(message: 'timeout', isNetworkError: true);
+    client.onSessionExpired = () => expired = true;
+
+    await expectLater(
+      () => client.get('/api/expenses'),
+      throwsA(isA<ApiException>().having((e) => e.statusCode, 'statusCode', 401)),
+    );
+
+    expect(expired, isFalse);
+  });
+
   group('certificate pinning', () {
     test('con PINNED_CERT_SHA256 vacío no se toca el httpClientAdapter',
         () async {

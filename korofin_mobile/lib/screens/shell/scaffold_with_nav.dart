@@ -17,32 +17,59 @@ import '../movements/transaction_form_sheet.dart';
 /// `dashboard_screen.dart`, `movements_screen.dart` y `debts_hub_screen.dart`);
 /// en Asistente no hay ningún FAB.
 ///
-/// También escucha [nequiCaptureControllerProvider]: cuando se detecta un
-/// pago/envío/recibo de plata de Nequi (en vivo, o porque el usuario tocó la
-/// notificación propia que se le ofreció), ofrece el formulario pre-llenado
-/// para que confirme el gasto/ingreso antes de crearlo.
-class ScaffoldWithNav extends ConsumerWidget {
+/// También ofrece el movimiento de Nequi pendiente de
+/// [nequiCaptureControllerProvider]: abre el formulario pre-llenado para que
+/// el usuario confirme el gasto/ingreso antes de crearlo.
+class ScaffoldWithNav extends ConsumerStatefulWidget {
   const ScaffoldWithNav({super.key, required this.navigationShell});
 
   final StatefulNavigationShell navigationShell;
 
-  Future<void> _handleNequiMatch(
-    BuildContext context,
-    WidgetRef ref,
-    PendingNequiMatch match,
-  ) async {
+  @override
+  ConsumerState<ScaffoldWithNav> createState() => _ScaffoldWithNavState();
+}
+
+class _ScaffoldWithNavState extends ConsumerState<ScaffoldWithNav> {
+  /// Evita abrir un segundo formulario encima del que ya se está mostrando.
+  bool _showingNequiForm = false;
+
+  @override
+  void initState() {
+    super.initState();
+    // `ref.listen` solo avisa de cambios: si el movimiento quedó pendiente
+    // mientras este widget no estaba montado (por ejemplo, detrás de la
+    // pantalla de bloqueo con huella), hay que ofrecerlo al montarse.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        unawaited(_offerNequiMatch(ref.read(nequiCaptureControllerProvider)));
+      }
+    });
+  }
+
+  Future<void> _offerNequiMatch(PendingNequiMatch? match) async {
+    if (match == null || _showingNequiForm) return;
+    _showingNequiForm = true;
+    final MovementFormResult? result;
+    try {
+      result = await showTransactionForm(
+        context,
+        type: match.type,
+        initial: match.toMovement(),
+        allowTypeToggle: false,
+      );
+    } finally {
+      _showingNequiForm = false;
+    }
+    // Si el widget se desmontó no fue el usuario quien cerró el formulario
+    // (por ejemplo, entró la pantalla de bloqueo): el movimiento sigue
+    // pendiente y se vuelve a ofrecer al montarse de nuevo.
+    if (!mounted) return;
     ref.read(nequiCaptureControllerProvider.notifier).dismiss();
-    final MovementFormResult? result = await showTransactionForm(
-      context,
-      type: match.type,
-      initial: match.toMovement(),
-      allowTypeToggle: false,
-    );
-    if (result == null || !context.mounted) return;
+    if (result == null) return;
     try {
       final AddOutcome outcome =
           await ref.read(movementsProvider(result.type).notifier).add(result.draft);
-      if (context.mounted) {
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(outcome == AddOutcome.queued
               ? 'Sin conexión: se guardó en el dispositivo y se sincronizará automáticamente.'
@@ -50,7 +77,7 @@ class ScaffoldWithNav extends ConsumerWidget {
         ));
       }
     } on ApiException catch (e) {
-      if (context.mounted) {
+      if (mounted) {
         ScaffoldMessenger.of(context)
             .showSnackBar(SnackBar(content: Text(e.message)));
       }
@@ -58,12 +85,12 @@ class ScaffoldWithNav extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    ref.listen<PendingNequiMatch?>(nequiCaptureControllerProvider, (previous, next) {
-      if (next != null) {
-        unawaited(_handleNequiMatch(context, ref, next));
-      }
-    });
+  Widget build(BuildContext context) {
+    final StatefulNavigationShell navigationShell = widget.navigationShell;
+    ref.listen<PendingNequiMatch?>(
+      nequiCaptureControllerProvider,
+      (previous, next) => unawaited(_offerNequiMatch(next)),
+    );
 
     return Scaffold(
       body: SafeArea(bottom: false, child: navigationShell),

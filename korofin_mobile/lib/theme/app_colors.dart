@@ -11,6 +11,13 @@ class AppColors {
   // Shared brand accent — identical in both light and dark mode.
   static const Color accent = Color(0xFF4F46E5); // indigo-600
   static const Color accentHover = Color(0xFF4338CA); // indigo-700
+  // Índigo para texto y enlaces sobre fondo oscuro (contraste suficiente).
+  static const Color accentOnDark = Color(0xFFA5B4FC); // indigo-300
+
+  // Verde de marca: la cuña del símbolo de KoroFin. `brandMint` sobre fondos
+  // oscuros o índigo; `brandEmerald` sobre fondos claros (contraste).
+  static const Color brandMint = Color(0xFF6EE7B7); // emerald-300
+  static const Color brandEmerald = Color(0xFF059669); // emerald-600
 
   // Destructive actions/errors — intentionally not tied to `accent`.
   static const Color destructive = Color(0xFFDC2626); // red-600

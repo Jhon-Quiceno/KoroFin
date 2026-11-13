@@ -2,6 +2,7 @@
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:korofin_mobile/widgets/brand/koro_mark.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:korofin_mobile/core/providers.dart';
 import 'package:korofin_mobile/core/storage/session_store.dart';
@@ -25,7 +26,10 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
     await tester.pumpAndSettle();
 
-    expect(find.text('Bienvenido de nuevo'), findsOneWidget);
-    expect(find.text('Continuar'), findsOneWidget);
+    // El logo junto al nombre y la marca de agua de fondo.
+    expect(find.byType(KoroMark), findsNWidgets(2));
+    expect(find.text('KoroFin'), findsOneWidget);
+    expect(find.text('Tu plata,\nen partes claras.'), findsOneWidget);
+    expect(find.text('Ingresar'), findsOneWidget);
   });
 }

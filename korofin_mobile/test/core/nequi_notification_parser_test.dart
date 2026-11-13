@@ -79,6 +79,20 @@ void main() {
       });
     });
 
+    group('envío propio sin monto (formato real)', () {
+      test('"Envío exitoso" detecta un egreso con monto desconocido', () {
+        final NequiParseResult result = NequiNotificationParser.parse(
+          title: 'Tu plata llegó con éxito 💜',
+          body: 'Envío exitoso, la plata ya está en el Nequi destino.✈ '
+              'Recuerda que no se puede cancelar. Avísale a tu amigo que ya le llegó.✨',
+        );
+        expect(result, isA<NequiExpenseDetected>());
+        final NequiExpenseDetected expense = result as NequiExpenseDetected;
+        expect(expense.amount, 0);
+        expect(expense.description, isNull);
+      });
+    });
+
     group('al pagar algo (S4.3)', () {
       test('título "¡Pago exitoso!" detecta egreso con el monto y el comercio', () {
         final NequiParseResult result = NequiNotificationParser.parse(

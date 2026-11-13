@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256" role="img" aria-labelledby="title">
+  <title id="title">KoroFin</title>
+  <rect width="256" height="256" rx="56" fill="#4F46E5"/>
+  <g transform="translate(40.96 40.96) scale(0.68)">
+  <path fill="#FFFFFF" d="M83 25.44A112 112 0 0 0 83 230.56ZM101 19.3A112 112 0 0 1 184.8 31.47L101 115.27ZM101 236.7A112 112 0 0 0 184.8 224.53L101 140.73Z"/>
+  <path fill="#6EE7B7" d="M113.73 128L199.74 41.99A112 112 0 0 1 199.74 214.01Z"/>
+  </g>
+</svg>

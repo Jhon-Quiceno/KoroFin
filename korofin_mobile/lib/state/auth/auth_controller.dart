@@ -62,8 +62,16 @@ class AuthController extends Notifier<AuthState> {
       final AuthSession session = await _repo.refresh(refreshToken);
       await _persist(session);
       state = AuthState.authenticated(session.user);
-    } on ApiException {
-      await _clear();
+    } on ApiException catch (e) {
+      // Solo un rechazo del backend (401/403) invalida la sesión. Un timeout,
+      // la falta de red o un 5xx del servicio arrancando son transitorios: se
+      // conserva el refresh token para que el próximo arranque lo reintente,
+      // en vez de obligar a escribir correo y contraseña otra vez.
+      if (e.isUnauthorized) {
+        await _clear();
+      } else {
+        ref.read(accessTokenProvider.notifier).state = null;
+      }
       state = const AuthState.unauthenticated();
     }
   }
@@ -141,8 +149,12 @@ class AuthController extends Notifier<AuthState> {
         final AuthSession session = await _repo.refresh(refreshToken);
         await _persist(session);
         return session.accessToken;
-      } on ApiException {
-        return null;
+      } on ApiException catch (e) {
+        // `null` significa "sesión terminada" y dispara [onSessionExpired]:
+        // solo corresponde si el backend rechazó el refresh token. Un fallo
+        // transitorio se relanza para que la sesión siga abierta.
+        if (e.isUnauthorized) return null;
+        rethrow;
       }
     };
 
