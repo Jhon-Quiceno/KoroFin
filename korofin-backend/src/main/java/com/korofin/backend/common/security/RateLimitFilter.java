@@ -16,8 +16,10 @@ import java.time.Instant;
 
 /**
  * Rate limiting básico en memoria para los endpoints más expuestos a abuso: login, registro, y
- * las dos rutas que disparan una llamada a un proveedor de IA pago/con límite propio por request
- * ({@code /api/ai/chat} y {@code /api/receipts/scan}).
+ * las rutas que disparan una llamada a un proveedor de IA pago/con límite propio por request
+ * ({@code /api/ai/chat}, {@code /api/receipts/scan}, {@code /api/ai/categorize},
+ * {@code /api/ai/insights/generate} y {@code /api/statement-imports/preview}) y la emisión de
+ * códigos de vínculo de Telegram.
  *
  * <p><b>Decisión de orden del filtro:</b> se registra vía
  * {@code addFilterAfter(rateLimitFilter, JwtAuthenticationFilter.class)} en
@@ -42,6 +44,12 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private static final String REGISTER_PATH = "/api/users/register";
     private static final String AI_CHAT_PATH = "/api/ai/chat";
     private static final String RECEIPT_SCAN_PATH = "/api/receipts/scan";
+    // Rutas que gastan la llave de IA del operador sin pasar por la cuota mensual del chat, y la que
+    // emite códigos de vínculo de Telegram. Todas se limitan por usuario autenticado.
+    private static final String AI_CATEGORIZE_PATH = "/api/ai/categorize";
+    private static final String AI_INSIGHT_GENERATE_PATH = "/api/ai/insights/generate";
+    private static final String STATEMENT_PREVIEW_PATH = "/api/statement-imports/preview";
+    private static final String TELEGRAM_LINK_CODE_PATH = "/api/integrations/telegram/link-code";
 
     private final InMemoryRateLimiter rateLimiter = new InMemoryRateLimiter();
 
@@ -53,6 +61,10 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private final Duration aiChatWindow;
     private final int receiptScanMaxRequests;
     private final Duration receiptScanWindow;
+    private final int aiOperatorMaxRequests;
+    private final Duration aiOperatorWindow;
+    private final int linkCodeMaxRequests;
+    private final Duration linkCodeWindow;
 
     public RateLimitFilter(
             @Value("${app.rate-limit.login.max-requests:5}") int loginMaxRequests,
@@ -62,7 +74,11 @@ public class RateLimitFilter extends OncePerRequestFilter {
             @Value("${app.rate-limit.ai-chat.max-requests:10}") int aiChatMaxRequests,
             @Value("${app.rate-limit.ai-chat.window-seconds:60}") long aiChatWindowSeconds,
             @Value("${app.rate-limit.receipt-scan.max-requests:10}") int receiptScanMaxRequests,
-            @Value("${app.rate-limit.receipt-scan.window-seconds:60}") long receiptScanWindowSeconds
+            @Value("${app.rate-limit.receipt-scan.window-seconds:60}") long receiptScanWindowSeconds,
+            @Value("${app.rate-limit.ai-operator.max-requests:10}") int aiOperatorMaxRequests,
+            @Value("${app.rate-limit.ai-operator.window-seconds:60}") long aiOperatorWindowSeconds,
+            @Value("${app.rate-limit.link-code.max-requests:5}") int linkCodeMaxRequests,
+            @Value("${app.rate-limit.link-code.window-seconds:60}") long linkCodeWindowSeconds
     ) {
         this.loginMaxRequests = loginMaxRequests;
         this.loginWindow = Duration.ofSeconds(loginWindowSeconds);
@@ -72,6 +88,10 @@ public class RateLimitFilter extends OncePerRequestFilter {
         this.aiChatWindow = Duration.ofSeconds(aiChatWindowSeconds);
         this.receiptScanMaxRequests = receiptScanMaxRequests;
         this.receiptScanWindow = Duration.ofSeconds(receiptScanWindowSeconds);
+        this.aiOperatorMaxRequests = aiOperatorMaxRequests;
+        this.aiOperatorWindow = Duration.ofSeconds(aiOperatorWindowSeconds);
+        this.linkCodeMaxRequests = linkCodeMaxRequests;
+        this.linkCodeWindow = Duration.ofSeconds(linkCodeWindowSeconds);
     }
 
     @Override
@@ -80,15 +100,17 @@ public class RateLimitFilter extends OncePerRequestFilter {
             HttpServletResponse response,
             FilterChain filterChain
     ) throws ServletException, IOException {
-        String path = request.getRequestURI();
-        RateLimitRule rule = resolveRule(path, request);
+        // La regla se elige con la ruta canónica (decodificada, sin ";x", sin barra final, en
+        // minúsculas), no con la cruda: ver RequestPaths. El mensaje 429 sí devuelve la ruta tal
+        // como llegó.
+        RateLimitRule rule = resolveRule(RequestPaths.canonical(request), request);
 
         if (rule == null || rateLimiter.tryConsume(rule.key(), rule.maxRequests(), rule.window())) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        writeTooManyRequests(response, path);
+        writeTooManyRequests(response, request.getRequestURI());
     }
 
     private RateLimitRule resolveRule(String path, HttpServletRequest request) {
@@ -103,6 +125,18 @@ public class RateLimitFilter extends OncePerRequestFilter {
         }
         if (RECEIPT_SCAN_PATH.equals(path)) {
             return new RateLimitRule(authenticatedKey(request, "receipt-scan"), receiptScanMaxRequests, receiptScanWindow);
+        }
+        if (AI_CATEGORIZE_PATH.equals(path)) {
+            return new RateLimitRule(authenticatedKey(request, "ai-categorize"), aiOperatorMaxRequests, aiOperatorWindow);
+        }
+        if (AI_INSIGHT_GENERATE_PATH.equals(path)) {
+            return new RateLimitRule(authenticatedKey(request, "ai-insight-generate"), aiOperatorMaxRequests, aiOperatorWindow);
+        }
+        if (STATEMENT_PREVIEW_PATH.equals(path)) {
+            return new RateLimitRule(authenticatedKey(request, "statement-preview"), aiOperatorMaxRequests, aiOperatorWindow);
+        }
+        if (TELEGRAM_LINK_CODE_PATH.equals(path)) {
+            return new RateLimitRule(authenticatedKey(request, "telegram-link-code"), linkCodeMaxRequests, linkCodeWindow);
         }
         return null;
     }

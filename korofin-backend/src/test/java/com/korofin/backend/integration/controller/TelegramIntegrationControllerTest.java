@@ -24,6 +24,8 @@ import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.net.URI;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -141,6 +143,16 @@ class TelegramIntegrationControllerTest {
                         .header(WEBHOOK_HEADER, "wrong-secret")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void anEncodedSpellingOfAWebhookRouteWithoutTheSecretNeverReachesTheController() throws Exception {
+        // %65 = 'e': el contenedor decodifica la ruta a /expenses y Spring la enrutaria al
+        // controlador, asi que el secreto tiene que exigirse tambien para esta grafia.
+        mockMvc.perform(post(URI.create("/api/integrations/telegram/%65xpenses"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"telegramChatId\":\"1\",\"text\":\"cafe 5000\"}"))
                 .andExpect(status().isUnauthorized());
     }
 }

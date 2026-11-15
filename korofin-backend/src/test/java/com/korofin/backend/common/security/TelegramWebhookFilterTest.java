@@ -2,6 +2,8 @@ package com.korofin.backend.common.security;
 
 import jakarta.servlet.FilterChain;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
@@ -87,6 +89,61 @@ class TelegramWebhookFilterTest {
         FilterChain chain = mock(FilterChain.class);
 
         filter.doFilter(requestTo("/api/expenses"), new MockHttpServletResponse(), chain);
+
+        verify(chain, times(1)).doFilter(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "/api/integrations/telegram/%65xpenses",
+            "/api/integrations/telegram/receipts/",
+            "/api/integrations/telegram/confirm%2Dlink",
+            "/API/INTEGRATIONS/TELEGRAM/EXPENSES",
+            "//api/integrations/telegram/expenses",
+            "/api/integrations/telegram/expenses;x=1",
+            "/api/integrations/telegram/./expenses",
+            "/api/integrations/telegram/anything-new"
+    })
+    void alternateSpellingsAndUnknownRoutesUnderTheTelegramPrefixStillRequireTheSecret(String spelling)
+            throws Exception {
+        TelegramWebhookFilter filter = new TelegramWebhookFilter(SECRET);
+        FilterChain chain = mock(FilterChain.class);
+
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        filter.doFilter(requestTo(spelling), response, chain);
+
+        assertThat(response.getStatus()).isEqualTo(401);
+        verify(chain, never()).doFilter(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void anEncodedSpellingWithTheCorrectSecretIsAllowed() throws Exception {
+        TelegramWebhookFilter filter = new TelegramWebhookFilter(SECRET);
+        FilterChain chain = mock(FilterChain.class);
+
+        MockHttpServletRequest request = requestTo("/api/integrations/telegram/%65xpenses");
+        request.addHeader(HEADER, SECRET);
+        filter.doFilter(request, new MockHttpServletResponse(), chain);
+
+        verify(chain, times(1)).doFilter(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void theLinkCodeRouteStaysOutsideTheSecretCheckBecauseItUsesTheUsersJwt() throws Exception {
+        TelegramWebhookFilter filter = new TelegramWebhookFilter(SECRET);
+        FilterChain chain = mock(FilterChain.class);
+
+        filter.doFilter(requestTo("/api/integrations/telegram/link-code"), new MockHttpServletResponse(), chain);
+
+        verify(chain, times(1)).doFilter(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
+    }
+
+    @Test
+    void routesOutsideTheTelegramPrefixAreNotAffected() throws Exception {
+        TelegramWebhookFilter filter = new TelegramWebhookFilter(SECRET);
+        FilterChain chain = mock(FilterChain.class);
+
+        filter.doFilter(requestTo("/api/users/profile"), new MockHttpServletResponse(), chain);
 
         verify(chain, times(1)).doFilter(org.mockito.ArgumentMatchers.any(), org.mockito.ArgumentMatchers.any());
     }

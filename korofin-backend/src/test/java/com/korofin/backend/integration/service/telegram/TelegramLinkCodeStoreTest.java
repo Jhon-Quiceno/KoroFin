@@ -5,9 +5,12 @@ import org.junit.jupiter.api.Test;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.ArrayDeque;
+import java.util.Deque;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class TelegramLinkCodeStoreTest {
 
@@ -87,5 +90,58 @@ class TelegramLinkCodeStoreTest {
         public Instant instant() {
             return instant;
         }
+    }
+
+    /** Store cuyo sorteo de códigos está guionado, para forzar colisiones de forma determinista. */
+    private static TelegramLinkCodeStore storeDrawing(Clock clock, String... draws) {
+        Deque<String> queue = new ArrayDeque<>(java.util.List.of(draws));
+        return new TelegramLinkCodeStore(clock, 300, () -> {
+            String next = queue.pollFirst();
+            return next != null ? next : draws[draws.length - 1];
+        });
+    }
+
+    @Test
+    void aNewCodeNeverReplacesTheLiveCodeOfAnotherUser() {
+        TelegramLinkCodeStore store = storeDrawing(Clock.systemUTC(), "111111", "111111", "222222");
+        String victimCode = store.generate(1L);
+
+        String attackerCode = store.generate(2L);
+
+        assertThat(attackerCode).isEqualTo("222222");
+        assertThat(store.consume(victimCode)).contains(1L);
+    }
+
+    @Test
+    void generatingGivesUpInsteadOfReplacingWhenEveryDrawCollides() {
+        TelegramLinkCodeStore store = storeDrawing(Clock.systemUTC(), "111111");
+        store.generate(1L);
+
+        assertThatThrownBy(() -> store.generate(2L)).isInstanceOf(IllegalStateException.class);
+        assertThat(store.consume("111111")).contains(1L);
+    }
+
+    @Test
+    void generatingANewCodeInvalidatesThePreviousCodeOfTheSameUser() {
+        TelegramLinkCodeStore store = storeDrawing(Clock.systemUTC(), "111111", "222222");
+        String first = store.generate(1L);
+
+        String second = store.generate(1L);
+
+        assertThat(store.consume(first)).isEmpty();
+        assertThat(store.consume(second)).contains(1L);
+    }
+
+    @Test
+    void anExpiredCodeDoesNotBlockIssuingTheSameValueToSomeoneElse() {
+        MutableClock clock = new MutableClock(Instant.parse("2026-01-01T00:00:00Z"));
+        TelegramLinkCodeStore store = storeDrawing(clock, "111111", "111111");
+        store.generate(1L);
+        clock.advance(301);
+
+        String code = store.generate(2L);
+
+        assertThat(code).isEqualTo("111111");
+        assertThat(store.consume(code)).contains(2L);
     }
 }
