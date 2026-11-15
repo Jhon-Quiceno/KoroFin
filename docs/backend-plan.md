@@ -290,10 +290,15 @@ Ver [sección 7](#7-reportes).
   frontend Next.js.
 - **Server-to-server (n8n/Telegram):** `TelegramWebhookFilter`, secreto compartido en header
   `X-Telegram-Webhook-Secret`, comparación en tiempo constante (`MessageDigest.isEqual`). No usa
-  JWT — no hay sesión de usuario en ese contexto.
+  JWT — no hay sesión de usuario en ese contexto. **Falla cerrado:** exige el secreto en *toda* ruta
+  bajo `/api/integrations/telegram` salvo `link-code` (que usa el JWT del usuario), y decide con la
+  ruta canónica (`RequestPaths`), no con `getRequestURI()` crudo: una grafía como
+  `/api/integrations/telegram/%65xpenses` llegaba al controlador sin secreto.
 - **Rate limiting:** `RateLimitFilter`, ventana fija en memoria, corre *después* de
-  `JwtAuthenticationFilter` para poder combinar IP+userId en `/api/ai/chat` y
-  `/api/receipts/scan` (dos usuarios detrás del mismo NAT/oficina no comparten balde).
+  `JwtAuthenticationFilter` para poder combinar IP+userId en las rutas autenticadas (dos
+  usuarios detrás del mismo NAT/oficina no comparten balde). Elige la regla con la ruta canónica
+  (`RequestPaths`: decodificada, sin `;x`, sin barra final, en minúsculas), así que
+  `/api/users/%6Cogin` cuenta en el mismo balde que `/api/users/login`.
 
 ### 3.2 Flujo nuevo propuesto para KoroFin (mobile-only)
 
@@ -427,8 +432,12 @@ migrarlo tal cual a la nueva ubicación de paquetes (`service/ai/*`, con el cat�
   `POST /api/expenses` o `POST /api/incomes` con los datos ya extraídos.
 - **Rate limiting (`RateLimitFilter` + `InMemoryRateLimiter`):** ventana fija en memoria, por
   proceso (no distribuido — decisión de arquitectura documentada en
-  `docs/sprints/sprint1.md`, decisión 4: "en memoria, bucket por IP+usuario, no distribuido"). Cuatro
-  reglas hoy: `login` (IP), `register` (IP), `ai-chat` (IP+userId), `receipt-scan` (IP+userId).
+  `docs/sprints/sprint1.md`, decisión 4: "en memoria, bucket por IP+usuario, no distribuido"). Reglas
+  hoy: `login` (IP), `register` (IP), `ai-chat`, `receipt-scan`, y las rutas que gastan la llave de IA
+  del operador fuera de la cuota del chat (`/api/ai/categorize`, `/api/ai/insights/generate`,
+  `/api/statement-imports/preview`; regla `ai-operator`, un balde por ruta y usuario) y la emisión de
+  códigos de vínculo de Telegram (`link-code`), todas por IP+userId. Pendiente: un presupuesto
+  *mensual* por usuario para esas rutas, como el del chat.
   Clave de env: `RATE_LIMIT_<REGLA>_MAX_REQUESTS` / `_WINDOW_SECONDS`, todas con default razonable
   si no se configuran.
 - **Hallazgo verificado sobre el historial reciente (commit `1ca2b63`):** `RATE_LIMIT_RECEIPT_SCAN_*`

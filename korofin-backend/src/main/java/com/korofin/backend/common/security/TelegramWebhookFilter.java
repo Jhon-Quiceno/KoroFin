@@ -12,7 +12,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
-import java.util.Set;
 
 /**
  * Autenticación server-to-server para las tres rutas de webhook de n8n del dominio
@@ -34,11 +33,10 @@ public class TelegramWebhookFilter extends OncePerRequestFilter {
 
     private static final String SECRET_HEADER = "X-Telegram-Webhook-Secret";
 
-    private static final Set<String> PROTECTED_PATHS = Set.of(
-            "/api/integrations/telegram/confirm-link",
-            "/api/integrations/telegram/expenses",
-            "/api/integrations/telegram/receipts"
-    );
+    private static final String TELEGRAM_BASE_PATH = "/api/integrations/telegram";
+
+    /** Única ruta del prefijo que usa el JWT del usuario (la llama la app), no el secreto de n8n. */
+    private static final String LINK_CODE_PATH = TELEGRAM_BASE_PATH + "/link-code";
 
     private final String webhookSecret;
 
@@ -52,18 +50,30 @@ public class TelegramWebhookFilter extends OncePerRequestFilter {
             HttpServletResponse response,
             FilterChain filterChain
     ) throws ServletException, IOException {
-        String path = request.getRequestURI();
-        if (!PROTECTED_PATHS.contains(path)) {
+        if (!requiresSecret(RequestPaths.canonical(request))) {
             filterChain.doFilter(request, response);
             return;
         }
 
         if (webhookSecret.isEmpty() || !isValidSecret(request.getHeader(SECRET_HEADER))) {
-            writeUnauthorized(response, path);
+            writeUnauthorized(response, request.getRequestURI());
             return;
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    /**
+     * Falla cerrado: <b>toda</b> ruta bajo {@code /api/integrations/telegram} exige el secreto salvo
+     * {@code link-code}. Antes se comparaba la ruta cruda contra tres literales y cualquier otra
+     * grafía de la misma ruta (por ejemplo con un carácter en porcentaje) llegaba al controlador
+     * sin secreto, y una ruta nueva del controlador quedaba sin protección hasta que alguien
+     * recordara agregarla a la lista.
+     */
+    private static boolean requiresSecret(String canonicalPath) {
+        boolean underTelegram = canonicalPath.equals(TELEGRAM_BASE_PATH)
+                || canonicalPath.startsWith(TELEGRAM_BASE_PATH + "/");
+        return underTelegram && !canonicalPath.equals(LINK_CODE_PATH);
     }
 
     private boolean isValidSecret(String providedSecret) {
