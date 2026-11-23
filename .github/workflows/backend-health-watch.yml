@@ -7,22 +7,26 @@
 # puntualidad. Como Render suspende el servicio tras 15 min sin tráfico, esos
 # pocos despertares dejaban el backend dormido ~97 % del tiempo.
 #
-# Reparto de responsabilidades a partir de ahora:
-#   - Mantener el backend despierto -> pinger externo cada 5 min (cron-job.org
-#     o UptimeRobot). Ver docs/backend-plan.md, sección "Keep-alive del backend".
-#   - Avisar si ese pinger dejó de funcionar -> este workflow.
+# Cuota de Neon (2026-11-22): mantener el backend despierto 24/7 con un pinger cada
+# 5 min mantuvo el cómputo de Neon activo todo el mes y agotó las 100 CU-horas del
+# plan gratuito (la base quedó caída hasta el reinicio de cuota). Por eso YA NO se
+# mantiene nada despierto: el backend puede dormirse y cada ping lo despierta.
+# Cada despertar cuesta ~9 min de cómputo en Neon (~3,5 min de arranque + 5 min de
+# suspensión), así que cuantos menos pings, más margen. Ver docs/backend-plan.md,
+# sección 16.3.
 #
-# Es decir: esto ya no intenta mantener nada despierto. Verifica y FALLA cuando
-# el backend no responde, para que GitHub mande el email de workflow fallido y
-# el problema se note acá en vez de descubrirlo abriendo la app.
+# Este workflow verifica y FALLA cuando el backend no responde 200, para que GitHub
+# mande el email de workflow fallido y el problema se note acá en vez de
+# descubrirlo abriendo la app. Corre cada 6 h (4 despertares al día como máximo).
 
 name: Backend Health Watch
 
 on:
   schedule:
-    # Cada 30 min. Si GitHub se salta algunos, no pasa nada: esto es vigilancia,
-    # no el mecanismo que mantiene vivo el servicio.
-    - cron: '*/30 * * * *'
+    # Cada 6 h. Cada ejecución despierta el backend y la base de Neon, así que
+    # una frecuencia alta gasta la cuota de cómputo. Si GitHub se salta alguna,
+    # no pasa nada: esto es vigilancia.
+    - cron: '0 */6 * * *'
   workflow_dispatch:
 
 concurrency:
@@ -56,15 +60,15 @@ jobs:
           if [ -f response.txt ]; then echo "respuesta: $(cat response.txt)"; fi
 
           if [ "$http_code" != "200" ]; then
-            echo "::error::El backend no respondio 200 (http_code=$http_code). El pinger externo puede estar caido o el servicio no arranca."
+            echo "::error::El backend no respondio 200 (http_code=$http_code). El servicio no arranca o la base de datos no responde (cuota de Neon agotada?)."
             exit 1
           fi
 
-          # Un backend despierto responde en ~1-5 s. Si este sondeo tuvo que
-          # esperar decenas de segundos, el servicio estaba suspendido: el
-          # pinger externo dejo de hacer su trabajo.
+          # Un backend despierto responde en ~1-5 s. Tardar mas significa que
+          # estaba dormido y este sondeo lo desperto: es lo esperado ahora que no
+          # hay keep-alive, asi que solo se informa.
           if awk "BEGIN { exit !($elapsed > 15) }"; then
-            echo "::warning::El backend respondio, pero tardo ${elapsed}s: estaba dormido. Revisar que el pinger externo siga activo."
+            echo "::notice::El backend estaba dormido y este sondeo lo desperto (${elapsed}s)."
           fi
 
           echo "Backend arriba, sondeo en ${elapsed}s."

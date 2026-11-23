@@ -999,29 +999,29 @@ exigirle puntualidad.
 
 Tres piezas, cada una haciendo solo lo que sí puede cumplir:
 
-**1. Pinger externo (es lo que mantiene vivo el servicio).**
+**1. Sin keep-alive: el backend se duerme y cada ping lo despierta.**
 
-Un servicio de monitoreo HTTP gratuito que pegue cada 5 minutos. Configuración en
-[cron-job.org](https://cron-job.org) (gratis, sin tarjeta):
+El 2026-11-22 la base de Neon superó la cuota del plan gratuito (100 CU-horas por proyecto al
+mes; `korofin-backend` llevaba ~440 h de cómputo a 0,25 CU) y el backend respondió 503 hasta el
+reinicio de cuota. La causa fue el pinger cada 5 min: mantenía Render despierto y, con él, el
+cómputo de Neon activo las 24 h. Neon suspende el cómputo a los 5 min sin consultas; Render
+suspende el servicio a los 15 min sin tráfico.
 
-- URL: `https://korofin-backend.onrender.com/actuator/health`
-- Intervalo: cada **5 minutos** (por debajo de los 15 min que Render espera para suspender)
-- Método: `GET`
-- Timeout: el máximo que permita (el primer ping tras una suspensión tarda entre 188 y 225 s)
-- Activar la notificación por email ante fallo
+Regla: **no mantener nada despierto.** El pinger externo (cron-job.org o UptimeRobot) se
+desactiva o se espacia a **6 h o más**. Cada despertar cuesta ~9 min de cómputo en Neon (~3,5 min
+de arranque + 5 min hasta la suspensión): 4 despertares al día son ~18 h de cómputo al mes
+(~4,5 CU-horas), muy por debajo de las 100 disponibles. Con pings cada 5 min eran ~110.
 
-Alternativa equivalente: UptimeRobot, intervalo de 5 min.
+Si el ping tiene timeout corto (cron-job.org limita a 30 s) no importa: la petición ya despertó el
+servicio aunque el ping marque timeout.
 
-Nota de consumo: el plan Free de Render da 750 horas-instancia al mes y mantenerlo despierto 24/7
-consume ~720. Cabe, pero sin margen para un segundo servicio en la misma cuenta.
+**2. `.github/workflows/backend-health-watch.yml` (vigilancia).**
 
-**2. `.github/workflows/backend-health-watch.yml` (vigila al pinger).**
+Cada 6 h verifica el health y **falla el workflow** si el backend no responde 200 (por ejemplo,
+cuota de Neon agotada), de modo que GitHub mande el email. Que el sondeo tarde porque el backend
+dormía es lo esperado y solo se informa como `notice`.
 
-Ya no intenta mantener nada despierto. Cada 30 min verifica el health y **falla el workflow** si el
-backend no responde, de modo que GitHub mande el email. Si además responde lento, emite un warning:
-eso significa que estaba dormido y por lo tanto el pinger externo dejó de funcionar.
-
-**3. Colchón en la app (para cuando el pinger falle).**
+**3. Colchón en la app (el backend duerme entre usos).**
 
 - `AppConfig.requestTimeout` = 30 s para la operación normal.
 - `AppConfig.coldStartTimeout` = 300 s solo para el sondeo que despierta el backend (~33 % de
